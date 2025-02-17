@@ -1,0 +1,26 @@
+{
+    "editor.codeActionsOnSave": {},
+    "python.testing.pytestEnabled": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.autopep8"
+    },
+    "autopep8.args": [
+        "--max-line-length",
+        "132"
+    ],
+    "editor.formatOnSave": true,
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Launch Python Script Debug",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder}/main.py",
+                "stopOnEntry": true,
+                "justMyCode": false,
+                "console": "integratedTerminal" // Add this line
+            }
+        ]
+    }
+}
