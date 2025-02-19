@@ -19,7 +19,19 @@
                 "program": "${workspaceFolder}/main.py",
                 "stopOnEntry": true,
                 "justMyCode": false,
-                "console": "integratedTerminal" // Add this line
+                "console": "integratedTerminal",
+                "args": [
+                    "--discriminator",
+                    "3840",
+                    "--pin",
+                    "20202021",
+                    "--endpointID",
+                    "1",
+                    "--single_run_count",
+                    "0",
+                    "--multiple_run_count",
+                    "0"
+                ]
             }
         ]
     }

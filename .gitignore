@@ -1,2 +1,3 @@
 *.pyc
+chip_tool_output/
 __pycache__/
