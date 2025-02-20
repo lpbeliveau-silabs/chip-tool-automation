@@ -1,4 +1,5 @@
 from utils import send_cmd, open_commissioning_window, commission_pairing_code, commission_bleThread, CommandError
+from utils.jlink_logger import start_reading_device_output, stop_reading_device_output
 import argparse
 import subprocess
 import pexpect
@@ -12,10 +13,39 @@ target_device_ip: str = '10.4.215.46'
 single_run_count = 1
 multiple_run_count = 1
 output_dir = './chip_tool_output'
-device_suffix = '_device-logs.txt'
+device_uart_suffix = '_device-uart-logs.txt'
+device_rtt_suffix = '_device-rtt-logs.txt'
 chip_tool_suffix = '_chip-tool-logs.txt'
-device_error_suffix = '_device-error-logs.txt'
+device_uart_error_suffix = '_device-uart-error-logs.txt'
+device_rtt_error_suffix = '_device-rtt-error-logs.txt'
 chip_tool_error_suffix = '_chip-tool-error-logs.txt'
+
+
+def setup_device_logs(output_file: str, target_ip: str):
+    """
+    Setup the device logs.
+    Steps:
+    1. Start a tmux session.
+    2. Start a screen session in the tmux session.
+    Args:
+        output_file_prefix (str): The output file prefix.
+    """
+    send_cmd(f'tmux new-session -d -s chip_tool_test_session')
+    # Screen session to temporary store out logs in uart output_file
+    send_cmd(
+        f'tmux send-keys -t chip_tool_test_session "screen -L -Logfile {output_file}{device_uart_suffix} //telnet {target_ip} 4901" C-m')
+    # Start RTT logging
+    start_reading_device_output(serial_num="440298742", log_file_path=f'{output_file}{device_rtt_suffix}')
+
+
+def teardown_device_logs():
+    """
+    Teardown the device logs.
+    Steps:
+    1. Kill the tmux session.
+    """
+    send_cmd('tmux kill-session -t chip_tool_test_session')
+    stop_reading_device_output()
 
 
 def setup_test(otbrhex_input: str, target_ip: str) -> str:
@@ -73,32 +103,8 @@ def teardown_test():
     1. Kill the tmux session.
     2. Remove the chip_tool files.
     """
-    send_cmd('tmux kill-session -t chip_tool_test_session')
+    teardown_device_logs()
     send_cmd('rm -rf /tmp/chip_*')
-
-
-def setup_device_logs(output_file: str, target_ip: str):
-    """
-    Setup the device logs.
-    Steps:
-    1. Start a tmux session.
-    2. Start a screen session in the tmux session.
-    Args:
-        output_file_prefix (str): The output file prefix.
-    """
-    send_cmd(f'tmux new-session -d -s chip_tool_test_session')
-    # Screen session to temporary store out logs in output_file
-    send_cmd(
-        f'tmux send-keys -t chip_tool_test_session "screen -L -Logfile {output_file} //telnet {target_ip} 4901" C-m')
-
-
-def teardown_device_logs():
-    """
-    Teardown the device logs.
-    Steps:
-    1. Kill the tmux session.
-    """
-    send_cmd('tmux kill-session -t chip_tool_test_session')
 
 
 def handle_error(error_code: CommandError, output_file: str):
@@ -112,7 +118,8 @@ def handle_error(error_code: CommandError, output_file: str):
         error_code (CommandError): The error code.
     """
     print(f'Error: {CommandError.to_string(error_code)}')
-    send_cmd('mv {output_file}{device_suffix} {output_file}{device_error_suffix}')
+    send_cmd('mv {output_file}{device_uart_suffix} {output_file}{device_uart_error_suffix}')
+    send_cmd('mv {output_file}{device_rtt_suffix} {output_file}{device_rtt_error_suffix}')
     send_cmd('mv {output_file}{chip_tool_suffix} {output_file}{chip_tool_error_suffix}')
     teardown_test()
 
@@ -135,14 +142,14 @@ def single_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, di
     Returns:
         CommandError: SUCCESS if there were no error, the failed command error otherwise.
     """
-    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, output_file)
+    chip_tool_output_file = output_file + chip_tool_suffix
+    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
     if result != CommandError.SUCCESS:
         return result
 
-    send_cmd(f'~/chip-tool onoff toggle 1 {endpointID} --commissioner-name alpha', output_file)
-    send_cmd(f'~/chip-tool onoff read on-off 1 {endpointID} --commissioner-name alpha', output_file)
-
-    send_cmd(f'~/chip-tool pairing unpair 1 --commissioner-name alpha', output_file)
+    send_cmd(f'~/chip-tool onoff toggle 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
+    send_cmd(f'~/chip-tool onoff read on-off 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
+    send_cmd(f'~/chip-tool pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
     return CommandError.SUCCESS
 
 
@@ -169,7 +176,8 @@ def multiple_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, 
     Returns:
         CommandError: SUCCESS if there were no error, the failed command error otherwise.
     """
-    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, output_file)
+    chip_tool_output_file = output_file + chip_tool_suffix
+    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
     if result != CommandError.SUCCESS:
         return result
 
@@ -178,19 +186,20 @@ def multiple_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, 
     for fabric_idx, fabric_name in fabric_names.items():
         if fabric_idx == 1:
             continue
-        pairing_code = open_commissioning_window(output_file)
+        pairing_code = open_commissioning_window(chip_tool_output_file)
         if CommandError.OPEN_COMMISSIONING_WINDOW_ERROR == pairing_code:
             return CommandError.OPEN_COMMISSIONING_WINDOW_ERROR
-        if CommandError.COMMISSION_PAIRING_CODE_ERROR == commission_pairing_code(pairing_code, fabric_idx, fabric_name, output_file):
+        if CommandError.COMMISSION_PAIRING_CODE_ERROR == commission_pairing_code(pairing_code, fabric_idx, fabric_name, chip_tool_output_file):
             return CommandError.COMMISSION_PAIRING_CODE_ERROR
 
     for fabric_idx, fabric_name in fabric_names.items():
-        send_cmd(f'~/chip-tool onoff toggle {fabric_idx} {endpointID} --commissioner-name {fabric_name}', output_file)
-        send_cmd(f'~/chip-tool onoff read on-off {fabric_idx} {endpointID} --commissioner-name {fabric_name}', output_file)
+        send_cmd(f'~/chip-tool onoff toggle {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
+        send_cmd(
+            f'~/chip-tool onoff read on-off {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
 
     # goes through the fabric names in reversed order
     for fabric_idx, fabric_name in reversed(fabric_names.items()):
-        send_cmd(f'~/chip-tool pairing unpair {fabric_idx} --commissioner-name {fabric_name}', output_file)
+        send_cmd(f'~/chip-tool pairing unpair {fabric_idx} --commissioner-name {fabric_name}', chip_tool_output_file)
     return CommandError.SUCCESS
 
 
@@ -208,7 +217,7 @@ if __name__ == '__main__':
     otbrhex: str = None
 
     # output file prefix based on date
-    output_file_prefix = 'output_' + str(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    output_file_prefix = str(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
     if 'otbrhex' in vars(args) and args.otbrhex:
         otbrhex = args.otbrhex
@@ -229,11 +238,10 @@ if __name__ == '__main__':
 
     for i in range(single_run_count):
         test_prefix = output_dir + '/' + output_file_prefix + f'_single_run_{i + 1}'
-        device_output_file = test_prefix + device_suffix
-        chip_tool_output_file = test_prefix + chip_tool_suffix
+        device_output_file = test_prefix
 
         setup_device_logs(device_output_file, target_device_ip)
-        result = single_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
+        result = single_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, test_prefix)
         teardown_device_logs()
         if result != CommandError.SUCCESS:
             print(f'Single Fabric Commissioning Test Error #{i + 1}: {CommandError.to_string(result)}')
@@ -242,11 +250,10 @@ if __name__ == '__main__':
 
     for i in range(multiple_run_count):
         test_prefix = output_file_prefix + '/' + f'_multiple_run_{i + 1}'
-        device_output_file = test_prefix + device_suffix
-        chip_tool_output_file = test_prefix + chip_tool_suffix
+        device_output_file = test_prefix
 
         setup_device_logs(device_output_file, target_device_ip)
-        result = multiple_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
+        result = multiple_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, test_prefix)
         teardown_device_logs()
 
         if result != CommandError.SUCCESS:

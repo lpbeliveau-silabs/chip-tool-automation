@@ -1,1 +1,2 @@
 from .commands import send_cmd, open_commissioning_window, commission_pairing_code, commission_bleThread, CommandError
+from .jlink_logger import start_reading_device_output, stop_reading_device_output
