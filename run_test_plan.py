@@ -132,4 +132,4 @@ if __name__ == '__main__':
         teardown_device_logs()
     
     if run_commissioning:
-        send_cmd(f'~/chip-tool pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
+        send_cmd(f'{chip_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
