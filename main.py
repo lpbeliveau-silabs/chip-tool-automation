@@ -21,12 +21,13 @@ device_rtt_error_suffix = '_device-rtt-error-logs.txt'
 chip_tool_error_suffix = '_chip-tool-error-logs.txt'
 
 
-def setup_device_logs(output_file: str, target_ip: str):
+def setup_device_logs(output_file: str, target_ip: str, serial_num: str = "440298742"):
     """
     Setup the device logs.
     Steps:
     1. Start a tmux session.
     2. Start a screen session in the tmux session.
+    3. Start reading device output using RTT.
     Args:
         output_file_prefix (str): The output file prefix.
     """
@@ -35,7 +36,7 @@ def setup_device_logs(output_file: str, target_ip: str):
     send_cmd(
         f'tmux send-keys -t chip_tool_test_session "screen -L -Logfile {output_file}{device_uart_suffix} //telnet {target_ip} 4901" C-m')
     # Start RTT logging
-    start_reading_device_output(serial_num="440298742", log_file_path=f'{output_file}{device_rtt_suffix}')
+    start_reading_device_output(serial_num=serial_num, log_file_path=f'{output_file}{device_rtt_suffix}')
 
 
 def teardown_device_logs():
@@ -124,7 +125,7 @@ def handle_error(error_code: CommandError, output_file: str):
     teardown_test()
 
 
-def single_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, discriminator: str, output_file: str) -> CommandError:
+def single_fabric_commissioning_test(nodeID: str, endpointID: str, otbrhex: str, pin: str, discriminator: str, output_file: str) -> CommandError:
     """
     Perform a single fabric commissioning test.
     Steps:
@@ -143,7 +144,7 @@ def single_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, di
         CommandError: SUCCESS if there were no error, the failed command error otherwise.
     """
     chip_tool_output_file = output_file + chip_tool_suffix
-    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
+    result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file)
     if result != CommandError.SUCCESS:
         return result
 
@@ -153,7 +154,7 @@ def single_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, di
     return CommandError.SUCCESS
 
 
-def multiple_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, discriminator: str, output_file: str) -> CommandError:
+def multiple_fabric_commissioning_test(nodeID: str, endpointID: str, otbrhex: str, pin: str, discriminator: str, output_file: str) -> CommandError:
     """
     Perform a multiple fabric commissioning test.
     Steps:
@@ -177,7 +178,7 @@ def multiple_fabric_commissioning_test(endpointID: str, otbrhex: str, pin: str, 
         CommandError: SUCCESS if there were no error, the failed command error otherwise.
     """
     chip_tool_output_file = output_file + chip_tool_suffix
-    result = commission_bleThread(endpointID, otbrhex, pin, discriminator, chip_tool_output_file)
+    result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file)
     if result != CommandError.SUCCESS:
         return result
 
@@ -208,6 +209,7 @@ if __name__ == '__main__':
     parser.add_argument('--otbrhex', type=str, required=False)
     parser.add_argument('--discriminator', type=str, required=False)
     parser.add_argument('--pin', type=str, required=False)
+    parser.add_argument('--nodeID', type=str, required=False)
     parser.add_argument('--endpointID', type=str, required=False)
     parser.add_argument('--target_device_ip', type=str, required=False)
     parser.add_argument('--single_run_count', type=int, required=False)
@@ -225,6 +227,8 @@ if __name__ == '__main__':
         discriminator = args.discriminator
     if 'pin' in vars(args) and args.pin:
         pin = args.pin
+    if 'nodeID' in vars(args) and args.nodeID is not None:
+        nodeID = args.nodeID
     if 'endpointID' in vars(args) and args.endpointID:
         endpointID = args.endpointID
     if 'target_device_ip' in vars(args) and args.target_device_ip:
@@ -241,7 +245,7 @@ if __name__ == '__main__':
         device_output_file = test_prefix
 
         setup_device_logs(device_output_file, target_device_ip)
-        result = single_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, test_prefix)
+        result = single_fabric_commissioning_test(nodeID, endpointID, otbrhex, pin, discriminator, test_prefix)
         teardown_device_logs()
         if result != CommandError.SUCCESS:
             print(f'Single Fabric Commissioning Test Error #{i + 1}: {CommandError.to_string(result)}')
@@ -253,7 +257,7 @@ if __name__ == '__main__':
         device_output_file = test_prefix
 
         setup_device_logs(device_output_file, target_device_ip)
-        result = multiple_fabric_commissioning_test(endpointID, otbrhex, pin, discriminator, test_prefix)
+        result = multiple_fabric_commissioning_test(nodeID, endpointID, otbrhex, pin, discriminator, test_prefix)
         teardown_device_logs()
 
         if result != CommandError.SUCCESS:

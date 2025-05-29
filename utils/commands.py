@@ -1,6 +1,6 @@
 import subprocess
 import re
-
+import os
 
 class CommandError:
     SUCCESS = 0x00
@@ -22,9 +22,20 @@ class CommandError:
             return "Unknown Error"
 
 
-def send_cmd(chip_cmd, output_file: str = None):
+def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd: str = None):
+    env = os.environ.copy()
+    if extra_env_path:
+        env["PYTHONPATH"] = extra_env_path
+
     print(f'===== cmd: {chip_cmd}')
-    process = subprocess.Popen(chip_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        chip_cmd,
+        env=env,
+        cwd=cwd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
     stdout, stderr = process.communicate()
     buff = stdout.decode().splitlines(keepends=True)
 
@@ -52,16 +63,16 @@ def send_cmd(chip_cmd, output_file: str = None):
     return buff
 
 
-def commission_bleThread(endpointID, otbrhex, pin, discriminator, output_file: str = None):
-    buff = send_cmd(f'~/chip-tool pairing ble-thread {endpointID} hex:{otbrhex} {pin} {discriminator}', output_file)
+def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+    buff = send_cmd(f'{chipt_tool_path} pairing ble-thread {nodeID} hex:{otbrhex} {pin} {discriminator}', output_file)
     for line in reversed(buff):
         if "Device commissioning completed with success" in line:
             return CommandError.SUCCESS
     return CommandError.BLE_COMMISSIONING_FAILURE
 
 
-def open_commissioning_window(output_file: str = None):
-    buff = send_cmd('~/chip-tool pairing open-commissioning-window 1 1 400 2000 3841', output_file)
+def open_commissioning_window(output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+    buff = send_cmd(f'{chipt_tool_path} pairing open-commissioning-window 1 1 400 2000 3841', output_file)
     for line in reversed(buff):
         if 'Manual pairing code' in line:
             pattern = re.compile('Manual pairing code: \[(.*)]')
@@ -71,8 +82,8 @@ def open_commissioning_window(output_file: str = None):
     return CommandError.OPEN_COMMISSIONING_WINDOW_ERROR
 
 
-def commission_pairing_code(code, fabric_idx, fabric_name, output_file: str = None):
-    buff = send_cmd(f'~/chip-tool pairing code {fabric_idx} {code} --commissioner-name {fabric_name}', output_file)
+def commission_pairing_code(code, fabric_idx, fabric_name, output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+    buff = send_cmd(f'{chipt_tool_path} pairing code {fabric_idx} {code} --commissioner-name {fabric_name}', output_file)
     for line in reversed(buff):
         if "Device commissioning completed with success" in line:
             return CommandError.SUCCESS

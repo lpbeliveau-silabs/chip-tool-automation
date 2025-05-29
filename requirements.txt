@@ -1,3 +1,9 @@
 pexpect
 argparse
 pylink-square
+click
+diskcache
+pyyaml
+lark
+jinja2
+websockets
