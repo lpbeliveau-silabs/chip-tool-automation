@@ -1,0 +1,18 @@
+{
+    "otbrhex": "0e08000000000001000000030000134a0300001035060004001fffe00208c00daee7f105e2b60708fd18c3c4b32a3d96051063d1fd58b46f4e467baf5f677d0795d8030f4f70656e5468726561642d3062363201020b620410b2a37c1d16a59c28ff16f80f7a65aa990c0402a0f7f8",
+    "discriminator": "1234",
+    "pin": "20202021",
+    "nodeID": "1",
+    "endpointID": "1",
+    "target_device_ip": "10.4.215.46",
+    "target_device_serial_num": "440266221",
+    "use_json_list": true,
+    "commission_device": true,
+    "single_run_count": 0,
+    "multiple_run_count": 0,
+    "test_plan_run_count": 1,
+    "test_list": [
+        "Test_TC_CC_3_1"
+    ],
+    "factory_reset_device": true
+}

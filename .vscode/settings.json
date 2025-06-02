@@ -22,7 +22,7 @@
                 "console": "integratedTerminal",
                 "args": [
                     "--discriminator",
-                    "3840",
+                    "1234",
                     "--pin",
                     "20202021",
                     "--nodeID",
@@ -32,37 +32,31 @@
                     "--single_run_count",
                     "1",
                     "--multiple_run_count",
-                    "0"
-                ]
-            },
-            {
-                "name": "Launch Python Test Plan",
-                "type": "debugpy",
-                "request": "launch",
-                "program": "${workspaceFolder}/run_test_plan.py",
-                "stopOnEntry": true,
-                "justMyCode": false,
-                "console": "integratedTerminal",
-                "args": [
-                    "--otbrhex",
-                    "0e08000000000001000000030000134a0300001035060004001fffe00208c00daee7f105e2b60708fd18c3c4b32a3d96051063d1fd58b46f4e467baf5f677d0795d8030f4f70656e5468726561642d3062363201020b620410b2a37c1d16a59c28ff16f80f7a65aa990c0402a0f7f8",
-                    "--discriminator",
-                    "1234",
-                    "--pin",
-                    "20202021",
-                    "--nodeID",
-                    "1",
-                    "--endpointID",
+                    "0",
+                    "--test_plan_run_count",
                     "1",
                     "--target_device_ip",
                     "10.4.215.46",
                     "--target_device_serial_num",
                     "440266221",
                     "--test_list",
-                    "Test_TC_CC_3_1, Test_TC_CC_3_2, Test_TC_CC_3_3, Test_TC_CC_4_1, Test_TC_CC_4_2, Test_TC_CC_4_3, Test_TC_CC_4_4, Test_TC_CC_5_1, Test_TC_CC_5_2, Test_TC_CC_5_3, Test_TC_CC_6_1, Test_TC_CC_6_2, Test_TC_CC_6_3, Test_TC_CC_6_4, Test_TC_CC_6_5, Test_TC_CC_7_1, Test_TC_CC_7_2, Test_TC_CC_7_3, Test_TC_CC_7_4",
+                    "Test_TC_CC_3_1",
                     "--use_json_list",
+                    "False",
+                    "--factory_reset_device",
                     "True",
-                    "--commission_device",
+                ]
+            },
+            {
+                "name": "Launch Python Script from Json",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder}/main.py",
+                "stopOnEntry": true,
+                "justMyCode": false,
+                "console": "integratedTerminal",
+                "args": [
+                    "--use_script_input_json",
                     "True",
                 ]
             }

@@ -1,6 +1,7 @@
 import subprocess
 import re
 import os
+from typing import Literal
 
 class CommandError:
     SUCCESS = 0x00
@@ -9,7 +10,7 @@ class CommandError:
     COMMISSION_PAIRING_CODE_ERROR = 0x03
 
     @staticmethod
-    def to_string(error_code):
+    def to_string(error_code: int) -> str:
         if error_code == CommandError.SUCCESS:
             return "Success"
         elif error_code == CommandError.BLE_COMMISSIONING_FAILURE:
@@ -63,7 +64,7 @@ def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd
     return buff
 
 
-def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str, chipt_tool_path:str = '~/chip-tool') -> Literal[0,1]:
     buff = send_cmd(f'{chipt_tool_path} pairing ble-thread {nodeID} hex:{otbrhex} {pin} {discriminator}', output_file)
     for line in reversed(buff):
         if "Device commissioning completed with success" in line:
@@ -71,7 +72,7 @@ def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str =
     return CommandError.BLE_COMMISSIONING_FAILURE
 
 
-def open_commissioning_window(output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+def open_commissioning_window(output_file: str, chipt_tool_path:str = '~/chip-tool'):
     buff = send_cmd(f'{chipt_tool_path} pairing open-commissioning-window 1 1 400 2000 3841', output_file)
     for line in reversed(buff):
         if 'Manual pairing code' in line:
@@ -82,7 +83,7 @@ def open_commissioning_window(output_file: str = None, chipt_tool_path:str = '~/
     return CommandError.OPEN_COMMISSIONING_WINDOW_ERROR
 
 
-def commission_pairing_code(code, fabric_idx, fabric_name, output_file: str = None, chipt_tool_path:str = '~/chip-tool'):
+def commission_pairing_code(code, fabric_idx, fabric_name, output_file: str, chipt_tool_path:str = '~/chip-tool')-> Literal[0,3]:
     buff = send_cmd(f'{chipt_tool_path} pairing code {fabric_idx} {code} --commissioner-name {fabric_name}', output_file)
     for line in reversed(buff):
         if "Device commissioning completed with success" in line:
