@@ -33,6 +33,8 @@
                     "1",
                     "--multiple_run_count",
                     "0",
+                    "test_list_run_count",
+                    "1",
                     "--test_plan_run_count",
                     "1",
                     "--target_device_ip",

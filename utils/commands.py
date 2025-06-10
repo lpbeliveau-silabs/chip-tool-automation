@@ -8,6 +8,8 @@ class CommandError:
     BLE_COMMISSIONING_FAILURE = 0x01
     OPEN_COMMISSIONING_WINDOW_ERROR = 0x02
     COMMISSION_PAIRING_CODE_ERROR = 0x03
+    TEST_FAILURE = 0x04
+    DEVICE_UNRESPONSIVE = 0x05
 
     @staticmethod
     def to_string(error_code: int) -> str:
@@ -47,11 +49,26 @@ def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd
         print(''.join(buff))
 
     for line in reversed(buff):
-        pattern = re.compile('Run command failure(.*)CHIP Error 0x00000032(.*)Timeout')
-        matcher = pattern.search(line)
+        tiemout_pattern = re.compile('Run command failure(.*)CHIP Error 0x00000032(.*)Timeout')
+        matcher = tiemout_pattern.search(line)
         if matcher:
             print("########## TIMEOUT ##########")
             process = subprocess.Popen('sudo tail -n 50 /var/log/syslog', shell=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            buff = stdout.decode().splitlines(keepends=True)
+            if output_file:
+                with open(output_file, 'a') as f:
+                    f.write("########## OTBR LOGS ##########\r\n")
+                    f.write(''.join(buff))
+            else:
+                print(''.join(buff))
+
+        failure_pattern = re.compile('***** Test Failure :')
+        matcher = failure_pattern.search(line)
+        if matcher:
+            print("########## FAILURE ##########")
+            process = subprocess.Popen('sudo tail -n 50 /v ar/log/syslog', shell=True,
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = process.communicate()
             buff = stdout.decode().splitlines(keepends=True)

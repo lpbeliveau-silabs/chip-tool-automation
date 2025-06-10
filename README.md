@@ -15,8 +15,9 @@ Python script to automate chip-tool commands to perform tests.
 - `--test_list`: Comma-separated list of YAML test names to run (default: None).
 - `--use_json_list`: Whether to use a JSON file for the test list (default: False).
 - `--single_run_count`: The number of single fabric commissioning test runs (default: 1).
-- `--multiple_run_count`: The number of multiple fabric commissioning test runs (default: 1).
-- `--test_plan_run_count`: The number of times to run the YAML test plan (default: 0).
+- `--multiple_run_count`: The number of multiple fabric commissioning test runs (default: 0).
+- `--test_list_run_count`: The number of times to run the whole test list (default: 0).
+- `--test_plan_run_count`: The number of times to run a single YAML test plan (default: 0).
 - `--factory_reset_device`: Whether to factory reset the device before running tests (default: False).
 - `--commission_device`: Whether to commission the device (default: False).
 - `--use_script_input_json`: If set, loads all arguments from `script_input.json` and ignores other CLI arguments.
@@ -63,6 +64,7 @@ The `script_input.json` file should contain all the arguments as keys, for examp
   "commission_device": true,
   "single_run_count": 0,
   "multiple_run_count": 0,
+  "test_list_run_count": 1,
   "test_plan_run_count": 1,
   "test_list": ["Test_TC_CC_3_1"],
   "factory_reset_device": true

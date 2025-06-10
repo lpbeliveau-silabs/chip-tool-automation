@@ -16,6 +16,7 @@ endpointID: str = '1'
 target_device_ip: str = '10.4.215.46'
 single_run_count = 1
 multiple_run_count = 0
+test_list_run_count = 1
 test_plan_run_count = 0
 device_uart_suffix = '_device-uart-logs.txt'
 device_rtt_suffix = '_device-rtt-logs.txt'
@@ -87,6 +88,27 @@ def teardown_device_logs():
     # Stop RTT logging
     # stop_reading_device_output()
 
+def verify_device_logs(output_file: str) -> bool:
+    """
+    Verify the device logs are not empty. Empty logs are interpretted as if the device became unresponsive.
+    Steps:
+    1. Check the device UART logs for errors.
+    2. Check the device RTT logs for errors. (currently disabled)
+    
+    Args:
+        output_file (str): The output file prefix.
+
+    Returns:
+        bool: True if no errors are found, False otherwise.
+    """
+    # Check UART logs
+    with open(f'{output_file}{device_uart_suffix}', 'r') as f:
+        uart_logs = f.read()
+    if not uart_logs:
+        print(f'No UART logs found in {output_file}{device_uart_suffix}. Device might be unresponsive.')
+        return False
+
+    return True  # TODO: Add RTT log verification when implemented
 
 def setup_test(otbrhex_input: str, target_ip: str) -> str:
     """
@@ -112,6 +134,9 @@ def setup_test(otbrhex_input: str, target_ip: str) -> str:
 
         otbrhex_output = otbrhex_output[0]
         print(f'otbrhex_output: {otbrhex_output}')
+    else:
+        otbrhex_output = otbrhex_input
+        print(f'Using provided otbrhex: {otbrhex_output}')
 
     # Ensure the device is advertising by toggling the button 0
     telnet_cmds = [
@@ -327,11 +352,12 @@ def yaml_test_script_test(
     output_dir: str,
     output_file_prefix: str,
     test_list: List[str],
+    test_list_run_count: int,
     test_plan_run_count: int,
     target_device_ip: str,
     target_device_serial_num: str,
     extra_env_path: str
-) -> Literal[0,1,2,3]:
+) -> Literal[0,1,2,3,4,5]:
     """
     Run a set of YAML test scripts using chip-tool and handle errors.
     Steps:
@@ -351,29 +377,40 @@ def yaml_test_script_test(
         handle_error(result, chip_tool_output_file)
         return result
 
-    for i in range(test_plan_run_count):
+    for i in range(test_list_run_count):
         test_prefix = output_file_prefix + f'_test_plan_run_{i + 1}_'
         output_file = output_dir + test_prefix
 
         for test in test_list:
             print(f'Running test: {test}')
-            device_output_file = output_file + test
-            chip_tool_output_file = output_file + test + chip_tool_suffix
-            setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
-            send_cmd(
-                chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId 1',
-                output_file=chip_tool_output_file,
-                extra_env_path=extra_env_path,
-                cwd=chip_path
-            )
-            teardown_device_logs()
-        if result != CommandError.SUCCESS:
-            break
+            for j in range(test_plan_run_count):  # Run each yaml test plan 3 times
+                device_output_file = output_file + test + f'_run_{j + 1}_'
+                chip_tool_output_file = output_file + test + f'_run_{j + 1}_' +  chip_tool_suffix
+                setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
+                buff = send_cmd(
+                    chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId 1',
+                    output_file=chip_tool_output_file,
+                    extra_env_path=extra_env_path,
+                    cwd=chip_path
+                )
+                for line in reversed(buff):
+                    if "########## FAILURE ##########" in line:
+                        handle_error(CommandError.TEST_FAILURE, device_output_file)
+                        # If a failure is detected, we identify the failure logs but we don't stop the test run.
+
+                teardown_device_logs()
+                if not verify_device_logs(device_output_file):
+                    handle_error(CommandError.DEVICE_UNRESPONSIVE, device_output_file)
+                    result = CommandError.DEVICE_UNRESPONSIVE
+                    break
+            if result != CommandError.SUCCESS:
+                break
 
     # Unpair after all tests if commissioning succeeded
     if result == CommandError.SUCCESS:
         send_cmd(f'{chip_tool_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
     else:
+        # TODO: Add error handling to recover the device if it is unresponsive
         print(f'YAML Test Script Test Error: {CommandError.to_string(result)}')
 
     return result
@@ -398,6 +435,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_json_list', type=str2bool, required=False, default=False)
     parser.add_argument('--single_run_count', type=int, required=False)
     parser.add_argument('--multiple_run_count', type=int, required=False)
+    parser.add_argument('--test_list_run_count', type=int, required=False)
     parser.add_argument('--test_plan_run_count', type=int, required=False)
     parser.add_argument('--factory_reset_device', type=str2bool, required=False, default=False)
     parser.add_argument('--commission_device', type=str2bool, required=False, default=False)
@@ -442,6 +480,8 @@ if __name__ == '__main__':
         single_run_count = args.single_run_count
     if 'multiple_run_count' in vars(args) and args.multiple_run_count is not None:
         multiple_run_count = args.multiple_run_count
+    if 'test_list_run_count' in vars(args) and args.test_list_run_count is not None:
+        test_list_run_count = args.test_list_run_count
     if 'test_plan_run_count' in vars(args) and args.test_plan_run_count is not None:
         test_plan_run_count = args.test_plan_run_count
     if 'factory_reset_device' in vars(args) and args.factory_reset_device:
@@ -478,6 +518,7 @@ if __name__ == '__main__':
             output_dir=output_dir,
             output_file_prefix=output_file_prefix,
             test_list=test_list,
+            test_list_run_count=test_list_run_count,
             test_plan_run_count=test_plan_run_count,
             target_device_ip=target_device_ip,
             target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
