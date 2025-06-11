@@ -64,7 +64,7 @@ def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd
             else:
                 print(''.join(buff))
 
-        failure_pattern = re.compile('***** Test Failure :')
+        failure_pattern = re.compile(r'\*{5} Test Failure :')
         matcher = failure_pattern.search(line)
         if matcher:
             print("########## FAILURE ##########")
@@ -93,7 +93,7 @@ def open_commissioning_window(output_file: str, chipt_tool_path:str = '~/chip-to
     buff = send_cmd(f'{chipt_tool_path} pairing open-commissioning-window 1 1 400 2000 3841', output_file)
     for line in reversed(buff):
         if 'Manual pairing code' in line:
-            pattern = re.compile('Manual pairing code: \[(.*)]')
+            pattern = re.compile(r'Manual pairing code: \[(.*)]')
             matcher = pattern.search(line)
             if matcher:
                 return matcher[1]
