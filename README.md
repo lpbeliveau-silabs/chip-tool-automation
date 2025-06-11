@@ -108,3 +108,10 @@ The YAML Test List Test Loop runs a set of YAML-based test scripts as specified 
 5. If any error occurs during a test, error handling is performed and the loop is terminated early.
 
 This loop is useful for running a batch of YAML-defined tests in a repeatable and automated fashion.
+
+### Toggle Test Loop
+The toggle test loop runs the `toggle_test` function for the specified number of times (`toggle_test_run_count`). This test does not require the device to be commissioned, only to be reachable via IP. The function performs the following steps:
+1. Connects to the device via telnet
+2. Press and release the device button 1
+3. Wait a defined amount of time
+4. Repeat step 2 and 3 for the number of times specified in `toggle_test_run_count`

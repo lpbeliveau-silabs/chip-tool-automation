@@ -14,10 +14,12 @@ discriminator: str = '3840'
 pin: str = '20202021'
 endpointID: str = '1'
 target_device_ip: str = '10.4.215.46'
-single_run_count = 1
+single_run_count = 0
 multiple_run_count = 0
-test_list_run_count = 1
+test_list_run_count = 0
 test_plan_run_count = 0
+toggle_test_run_count = 0
+toggle_sleep_time = 1
 device_uart_suffix = '_device-uart-logs.txt'
 device_rtt_suffix = '_device-rtt-logs.txt'
 chip_tool_suffix = '_chip-tool-logs.txt'
@@ -201,6 +203,52 @@ def handle_error(error_code: int, output_file: str):
     send_cmd(f'mv {output_file}{chip_tool_suffix} {output_file}{chip_tool_error_suffix}')
     teardown_test()
 
+def toggle_test(
+        output_dir: str,
+        output_file_prefix: str,
+        target_ip: str, 
+        target_device_serial_num: str,
+        run_count: int, 
+        sleep_time: int
+    ) -> Literal[0, 1]:
+    """
+    Perform a toggle test on the device.
+    Steps:
+    1. Open a telnet session.
+    2. Press and release the button 1 on the device, this should toggle the device's light.
+    3. Wait for a short period of time (in seconds).
+    4. repeat step 2 and 3 for the specified number of times.
+    5. Close the telnet session.
+
+    Args:
+        output_dir (str): The output path of the chip-tool logs.
+        output_file_prefix (str): The output file prefix (typically the time when the test were started)
+        target_ip (str): The target device IP.
+        run_count (int): The number of times to run the test.
+        sleep_time (int): The time to wait between toggles in seconds.
+
+    Returns:
+        CommandError: SUCCESS if there were no error, the failed command error otherwise.
+    """
+    device_output_file = output_dir + output_file_prefix + '_toggle_test_'
+    setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
+    child = pexpect.spawn(f'telnet {target_ip} 4902')
+    for i in range(run_count):
+        print(f'Toggle Test Run #{i + 1}')
+        telnet_cmds = [
+            "target button press 1",
+            "target button release 1",
+        ]
+
+        
+        for cmd in telnet_cmds:
+            child.sendline(cmd)
+            sleep(0.5)
+
+        sleep(sleep_time)
+    teardown_device_logs()
+    child.close()
+    return CommandError.SUCCESS
 
 def single_fabric_commissioning_test(
         nodeID: str,
@@ -208,7 +256,8 @@ def single_fabric_commissioning_test(
         otbrhex: str,
         pin: str,
         discriminator: str,
-        outpur_dir: str,
+        output_dir: str,
+        output_file_prefix: str,
         target_device_ip: str,
         run_count: int,
         chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
@@ -226,7 +275,7 @@ def single_fabric_commissioning_test(
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
         discriminator (str): The discriminator.
-        outpur_dir (str): The output path of the chip-tool logs.
+        output_dir (str): The output path of the chip-tool logs.
         target_device_ip (str): The target device IP.
         run_count (int): The number of times to run the test.
         chip_tool_path (str): The path to the chip-tool binary.
@@ -265,6 +314,7 @@ def multiple_fabric_commissioning_test(
         pin: str,
         discriminator: str,
         output_dir: str,
+        output_file_prefix: str,
         target_device_ip: str,
         run_count: int,
         chip_tool_path: str = "~/connectedhomeip/out/standalone/chip-tool"
@@ -437,6 +487,8 @@ if __name__ == '__main__':
     parser.add_argument('--multiple_run_count', type=int, required=False)
     parser.add_argument('--test_list_run_count', type=int, required=False)
     parser.add_argument('--test_plan_run_count', type=int, required=False)
+    parser.add_argument('--toggle_test_run_count', type=int, required=False)
+    parser.add_argument('--toggle_sleep_time', type=int, required=False)
     parser.add_argument('--factory_reset_device', type=str2bool, required=False, default=False)
     parser.add_argument('--commission_device', type=str2bool, required=False, default=False)
     parser.add_argument('--use_script_input_json', type=str2bool, required=False, default=False)
@@ -484,6 +536,10 @@ if __name__ == '__main__':
         test_list_run_count = args.test_list_run_count
     if 'test_plan_run_count' in vars(args) and args.test_plan_run_count is not None:
         test_plan_run_count = args.test_plan_run_count
+    if 'toggle_test_run_count' in vars(args) and args.toggle_test_run_count is not None:
+        toggle_test_run_count = args.toggle_test_run_count
+    if 'toggle_sleep_time' in vars(args) and args.toggle_test_run_count is not None:
+        toggle_sleep_time = args.toggle_test_run_count
     if 'factory_reset_device' in vars(args) and args.factory_reset_device:
         factory_reset_device() 
 
@@ -499,11 +555,31 @@ if __name__ == '__main__':
     otbrhex = setup_test(otbrhex, target_device_ip)
     chip_tool_path = chip_path + '/out/standalone/chip-tool'
 
-    result = single_fabric_commissioning_test(nodeID, endpointID, otbrhex, pin, discriminator, output_dir, target_device_ip, single_run_count)
+    result = single_fabric_commissioning_test(
+        nodeID, 
+        endpointID, 
+        otbrhex, 
+        pin, 
+        discriminator, 
+        output_dir, 
+        output_file_prefix,
+        target_device_ip, 
+        single_run_count
+    )
     if result != CommandError.SUCCESS:
         exit(-1)
 
-    result = multiple_fabric_commissioning_test(nodeID, endpointID, otbrhex, pin, discriminator, output_dir, target_device_ip, multiple_run_count)
+    result = multiple_fabric_commissioning_test(
+        nodeID, 
+        endpointID, 
+        otbrhex, 
+        pin, 
+        discriminator, 
+        output_dir, 
+        output_file_prefix,
+        target_device_ip, 
+        multiple_run_count
+    )
     if result != CommandError.SUCCESS:
         exit(-1)
 
@@ -523,6 +599,18 @@ if __name__ == '__main__':
             target_device_ip=target_device_ip,
             target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
             extra_env_path=extra_env_path
+        )
+        if result != CommandError.SUCCESS:
+            exit(-1)
+
+    if toggle_test_run_count >= 1:
+        result = toggle_test(
+            output_dir=output_dir,
+            output_file_prefix=output_file_prefix,
+            target_ip=target_device_ip,
+            target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
+            run_count=toggle_test_run_count,
+            sleep_time=1
         )
         if result != CommandError.SUCCESS:
             exit(-1)
