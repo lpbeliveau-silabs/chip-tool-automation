@@ -18,6 +18,8 @@ Python script to automate chip-tool commands to perform tests.
 - `--multiple_run_count`: The number of multiple fabric commissioning test runs (default: 0).
 - `--test_list_run_count`: The number of times to run the whole test list (default: 0).
 - `--test_plan_run_count`: The number of times to run a single YAML test plan (default: 0).
+- `--toggle_test_run_count`: The number of times to run the toggle test (default: 0).
+- `--toggle_sleep_time`: The sleep time between toggle actions in seconds (default: 1).
 - `--factory_reset_device`: Whether to factory reset the device before running tests (default: False).
 - `--commission_device`: Whether to commission the device (default: False).
 - `--use_script_input_json`: If set, loads all arguments from `script_input.json` and ignores other CLI arguments.

@@ -14,18 +14,19 @@ discriminator: str = '3840'
 pin: str = '20202021'
 endpointID: str = '1'
 target_device_ip: str = '10.4.215.46'
-single_run_count = 0
-multiple_run_count = 0
-test_list_run_count = 0
-test_plan_run_count = 0
-toggle_test_run_count = 0
-toggle_sleep_time = 1
-device_uart_suffix = '_device-uart-logs.txt'
-device_rtt_suffix = '_device-rtt-logs.txt'
-chip_tool_suffix = '_chip-tool-logs.txt'
-device_uart_error_suffix = '_device-uart-error-logs.txt'
-device_rtt_error_suffix = '_device-rtt-error-logs.txt'
-chip_tool_error_suffix = '_chip-tool-error-logs.txt'
+single_run_count: int = 0
+multiple_run_count: int = 0
+test_list_run_count: int = 0
+test_plan_run_count: int = 0
+toggle_test_run_count: int = 0
+toggle_sleep_time: int = 1
+commission_device: bool = True
+device_uart_suffix: str = '_device-uart-logs.txt'
+device_rtt_suffix: str = '_device-rtt-logs.txt'
+chip_tool_suffix: str = '_chip-tool-logs.txt'
+device_uart_error_suffix: str = '_device-uart-error-logs.txt'
+device_rtt_error_suffix: str = '_device-rtt-error-logs.txt'
+chip_tool_error_suffix: str = '_chip-tool-error-logs.txt'
 
 env = os.environ.copy()
 
@@ -142,6 +143,7 @@ def setup_test(otbrhex_input: str, target_ip: str) -> str:
 
     # Ensure the device is advertising by toggling the button 0
     telnet_cmds = [
+        "target button enable"
         "target button press 0",
         "target button release 0",
         "quit"
@@ -233,6 +235,9 @@ def toggle_test(
     device_output_file = output_dir + output_file_prefix + '_toggle_test_'
     setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
     child = pexpect.spawn(f'telnet {target_ip} 4902')
+    print('Enabling buttons')
+    child.sendline("target button enable")
+    sleep(1)
     for i in range(run_count):
         print(f'Toggle Test Run #{i + 1}')
         telnet_cmds = [
@@ -260,6 +265,7 @@ def single_fabric_commissioning_test(
         output_file_prefix: str,
         target_device_ip: str,
         run_count: int,
+        commission_device: bool,
         chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
     ) -> Literal[0,1,2,3]:
     """
@@ -290,10 +296,12 @@ def single_fabric_commissioning_test(
         chip_tool_output_file = output_file + chip_tool_suffix
 
         setup_device_logs(output_file, target_device_ip)
-        result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
-        if result != CommandError.SUCCESS:
-            teardown_device_logs()
-            break
+        # If this is the first run and the device is commissioned, we skip commissioning.
+        if i != 0 or commission_device:
+            result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
+            if result != CommandError.SUCCESS:
+                teardown_device_logs()
+                break
 
         send_cmd(f'{chip_tool_path} onoff toggle 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
         send_cmd(f'{chip_tool_path} onoff read on-off 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
@@ -317,6 +325,7 @@ def multiple_fabric_commissioning_test(
         output_file_prefix: str,
         target_device_ip: str,
         run_count: int,
+        commission_device: bool,
         chip_tool_path: str = "~/connectedhomeip/out/standalone/chip-tool"
     ) -> Literal[0,1,2,3]:
     """
@@ -353,10 +362,12 @@ def multiple_fabric_commissioning_test(
         chip_tool_output_file = output_file + chip_tool_suffix
 
         setup_device_logs(output_file, target_device_ip)
-        result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
-        if result != CommandError.SUCCESS:
-            teardown_device_logs()
-            break
+        # If this is the first run and the device is commissioned, we skip commissioning.
+        if i != 0 or commission_device:
+            result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
+            if result != CommandError.SUCCESS:
+                teardown_device_logs()
+                break
 
         # Commission additional fabrics
         for fabric_idx, fabric_name in fabric_names.items():
@@ -398,7 +409,7 @@ def yaml_test_script_test(
     pin: str,
     discriminator: str,
     chip_path: str,
-    chip_tool_path: str,
+    commission_device: bool,
     output_dir: str,
     output_file_prefix: str,
     test_list: List[str],
@@ -406,7 +417,8 @@ def yaml_test_script_test(
     test_plan_run_count: int,
     target_device_ip: str,
     target_device_serial_num: str,
-    extra_env_path: str
+    extra_env_path: str,
+    chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
 ) -> Literal[0,1,2,3,4,5]:
     """
     Run a set of YAML test scripts using chip-tool and handle errors.
@@ -420,12 +432,15 @@ def yaml_test_script_test(
         CommandError: SUCCESS if all tests pass, otherwise the error code.
     """
     result = CommandError.SUCCESS
-    chip_tool_output_file = output_dir + output_file_prefix + "test_plan_run_commissioning" + chip_tool_suffix
-    result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
-    if result != CommandError.SUCCESS:
-        print(f'Commissioning failed with error: {result}')
-        handle_error(result, chip_tool_output_file)
-        return result
+
+    if commission_device:
+        output_file = output_dir + output_file_prefix + "_test_plan_run_commissioning"
+        chip_tool_output_file = output_file + chip_tool_suffix
+        result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
+        if result != CommandError.SUCCESS:
+            print(f'Commissioning failed with error: {result}')
+            handle_error(result, output_file)
+            return result
 
     for i in range(test_list_run_count):
         test_prefix = output_file_prefix + f'_test_plan_run_{i + 1}_'
@@ -434,8 +449,8 @@ def yaml_test_script_test(
         for test in test_list:
             print(f'Running test: {test}')
             for j in range(test_plan_run_count):  # Run each yaml test plan 3 times
-                device_output_file = output_file + test + f'_run_{j + 1}_'
-                chip_tool_output_file = output_file + test + f'_run_{j + 1}_' +  chip_tool_suffix
+                device_output_file = output_file + test + f'_run_{j + 1}'
+                chip_tool_output_file = output_file + test + f'_run_{j + 1}' +  chip_tool_suffix
                 setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
                 buff = send_cmd(
                     chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId 1',
@@ -443,19 +458,22 @@ def yaml_test_script_test(
                     extra_env_path=extra_env_path,
                     cwd=chip_path
                 )
-                for line in reversed(buff):
-                    if "########## FAILURE ##########" in line:
-                        handle_error(CommandError.TEST_FAILURE, device_output_file)
-                        # If a failure is detected, we identify the failure logs but we don't stop the test run.
-
-                teardown_device_logs()
                 if not verify_device_logs(device_output_file):
                     handle_error(CommandError.DEVICE_UNRESPONSIVE, device_output_file)
                     result = CommandError.DEVICE_UNRESPONSIVE
                     break
+                else:
+                    for line in reversed(buff):
+                        if "########## FAILURE ##########" in line:
+                            handle_error(CommandError.TEST_FAILURE, device_output_file)
+                            # If a failure is detected, we identify the failure logs but we don't stop the test run.
+                teardown_device_logs()
+
             if result != CommandError.SUCCESS:
                 break
-
+        if result != CommandError.SUCCESS:
+            break
+        
     # Unpair after all tests if commissioning succeeded
     if result == CommandError.SUCCESS:
         send_cmd(f'{chip_tool_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
@@ -526,8 +544,8 @@ if __name__ == '__main__':
         target_device_ip = args.target_device_ip
     if 'target_device_serial_num' in vars(args) and args.target_device_serial_num:
         target_device_serial_num = args.target_device_serial_num
-    if 'commission_device' in vars(args) and args.commission_device:
-        run_commissioning = args.commission_device
+    if 'commission_device' in vars(args):
+        commission_device = args.commission_device
     if 'single_run_count' in vars(args) and args.single_run_count is not None:
         single_run_count = args.single_run_count
     if 'multiple_run_count' in vars(args) and args.multiple_run_count is not None:
@@ -564,7 +582,8 @@ if __name__ == '__main__':
         output_dir, 
         output_file_prefix,
         target_device_ip, 
-        single_run_count
+        single_run_count,
+        commission_device
     )
     if result != CommandError.SUCCESS:
         exit(-1)
@@ -578,7 +597,8 @@ if __name__ == '__main__':
         output_dir, 
         output_file_prefix,
         target_device_ip, 
-        multiple_run_count
+        multiple_run_count,
+        commission_device
     )
     if result != CommandError.SUCCESS:
         exit(-1)
@@ -590,6 +610,7 @@ if __name__ == '__main__':
             pin=pin,
             discriminator=discriminator,
             chip_path=chip_path,
+            commission_device=commission_device,
             chip_tool_path=chip_tool_path,
             output_dir=output_dir,
             output_file_prefix=output_file_prefix,

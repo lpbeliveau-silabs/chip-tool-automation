@@ -9,7 +9,7 @@
     "commission_device": true,
     "single_run_count": 0,
     "multiple_run_count": 0,
-    "test_list_run_count": 100,
+    "test_list_run_count": 500,
     "test_plan_run_count": 3,
     "toggle_test_run_count": 0,
     "toggle_sleep_time": 1,
