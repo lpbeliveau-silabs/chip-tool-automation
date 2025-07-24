@@ -266,6 +266,7 @@ def single_fabric_commissioning_test(
         target_device_ip: str,
         run_count: int,
         commission_device: bool,
+        toggle_count: int = 1,
         chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
     ) -> Literal[0,1,2,3]:
     """
@@ -284,6 +285,7 @@ def single_fabric_commissioning_test(
         output_dir (str): The output path of the chip-tool logs.
         target_device_ip (str): The target device IP.
         run_count (int): The number of times to run the test.
+        toggle_count (int): The number of times to toggle the device on and off.
         chip_tool_path (str): The path to the chip-tool binary.
 
     Returns:
@@ -302,9 +304,11 @@ def single_fabric_commissioning_test(
             if result != CommandError.SUCCESS:
                 teardown_device_logs()
                 break
+        
+        for j in range(1, toggle_count):
+            send_cmd(f'{chip_tool_path} onoff toggle 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
+            send_cmd(f'{chip_tool_path} onoff read on-off 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
 
-        send_cmd(f'{chip_tool_path} onoff toggle 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
-        send_cmd(f'{chip_tool_path} onoff read on-off 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
         send_cmd(f'{chip_tool_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
         teardown_device_logs()
 
@@ -326,6 +330,7 @@ def multiple_fabric_commissioning_test(
         target_device_ip: str,
         run_count: int,
         commission_device: bool,
+        toggle_count: int = 2,
         chip_tool_path: str = "~/connectedhomeip/out/standalone/chip-tool"
     ) -> Literal[0,1,2,3]:
     """
@@ -349,6 +354,7 @@ def multiple_fabric_commissioning_test(
         output_dir (str): The output path of the chip-tool logs.
         target_device_ip (str): The target device IP.
         run_count (int): The number of times to run the test.
+        toggle_count (int): The number of times to toggle the device on and off for each fabric.
         chip_tool_path (str): The path to the chip-tool binary.
 
     Returns:
@@ -387,8 +393,9 @@ def multiple_fabric_commissioning_test(
 
         # Toggle and read on-off state for each fabric
         for fabric_idx, fabric_name in fabric_names.items():
-            send_cmd(f'{chip_tool_path} onoff toggle {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
-            send_cmd(f'{chip_tool_path} onoff read on-off {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
+            for j in range(1, toggle_count):
+                send_cmd(f'{chip_tool_path} onoff toggle {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
+                send_cmd(f'{chip_tool_path} onoff read on-off {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
 
         # Unpair each fabric in reverse order
         for fabric_idx, fabric_name in reversed(fabric_names.items()):
@@ -556,8 +563,8 @@ if __name__ == '__main__':
         test_plan_run_count = args.test_plan_run_count
     if 'toggle_test_run_count' in vars(args) and args.toggle_test_run_count is not None:
         toggle_test_run_count = args.toggle_test_run_count
-    if 'toggle_sleep_time' in vars(args) and args.toggle_test_run_count is not None:
-        toggle_sleep_time = args.toggle_test_run_count
+    if 'toggle_sleep_time' in vars(args) and args.toggle_sleep_time is not None:
+        toggle_sleep_time = args.toggle_sleep_time
     if 'factory_reset_device' in vars(args) and args.factory_reset_device:
         factory_reset_device() 
 
@@ -573,35 +580,40 @@ if __name__ == '__main__':
     otbrhex = setup_test(otbrhex, target_device_ip)
     chip_tool_path = chip_path + '/out/standalone/chip-tool'
 
-    result = single_fabric_commissioning_test(
-        nodeID, 
-        endpointID, 
-        otbrhex, 
-        pin, 
-        discriminator, 
-        output_dir, 
-        output_file_prefix,
-        target_device_ip, 
-        single_run_count,
-        commission_device
-    )
-    if result != CommandError.SUCCESS:
-        exit(-1)
-
-    result = multiple_fabric_commissioning_test(
-        nodeID, 
-        endpointID, 
-        otbrhex, 
-        pin, 
-        discriminator, 
-        output_dir, 
-        output_file_prefix,
-        target_device_ip, 
-        multiple_run_count,
-        commission_device
-    )
-    if result != CommandError.SUCCESS:
-        exit(-1)
+    if single_run_count > 0:
+        result = single_fabric_commissioning_test(
+            nodeID, 
+            endpointID, 
+            otbrhex, 
+            pin, 
+            discriminator, 
+            output_dir, 
+            output_file_prefix,
+            target_device_ip, 
+            single_run_count,
+            commission_device
+        )
+        if result != CommandError.SUCCESS:
+            exit(-1)
+        # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
+        commission_device = True
+    if multiple_run_count > 0 and not commission_device:
+        result = multiple_fabric_commissioning_test(
+            nodeID, 
+            endpointID, 
+            otbrhex, 
+            pin, 
+            discriminator, 
+            output_dir, 
+            output_file_prefix,
+            target_device_ip, 
+            multiple_run_count,
+            commission_device
+        )
+        if result != CommandError.SUCCESS:
+            exit(-1)
+            # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
+        commission_device = True
 
     if test_plan_run_count >= 1:
         result = yaml_test_script_test(
@@ -623,6 +635,8 @@ if __name__ == '__main__':
         )
         if result != CommandError.SUCCESS:
             exit(-1)
+        # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
+        commission_device = True
 
     if toggle_test_run_count >= 1:
         result = toggle_test(
@@ -631,7 +645,7 @@ if __name__ == '__main__':
             target_ip=target_device_ip,
             target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
             run_count=toggle_test_run_count,
-            sleep_time=1
+            sleep_time=toggle_sleep_time
         )
         if result != CommandError.SUCCESS:
             exit(-1)
