@@ -67,8 +67,11 @@ def setup_device_logs(output_file: str, target_ip: str, serial_num: str = ""):
     1. Start a tmux session.
     2. Start a screen session in the tmux session.
     3. Start reading device output using RTT. (currently disabled)
+    
     Args:
-        output_file_prefix (str): The output file prefix.
+        output_file (str): The output file prefix.
+        target_ip (str): The target device IP address.
+        serial_num (str, optional): The serial number of the device. Defaults to "".
     """
     send_cmd(f'tmux new-session -d -s chip_tool_test_session')
     # Screen session to temporary store out logs in uart output_file
@@ -122,7 +125,10 @@ def setup_test(otbrhex_input: str, target_ip: str) -> str:
 
     Args:
         otbrhex_input (str): The OTBR hex string, default is None.
-        target_ip (str): The target device IP.
+        target_ip (str): The target device IP address.
+        
+    Returns:
+        str: The OTBR hex string or "Error" if failed.
     """
     cmd: str = 'sudo ot-ctl dataset active -x'
 
@@ -194,9 +200,11 @@ def handle_error(error_code: int, output_file: str):
     1. Printing the error code.
     2. Moving the device logs to the output directory.
     3. Moving the chip-tool logs to the output directory.
-    5. Calling the teardown_test function.
+    4. Calling the teardown_test function.
+    
     Args:
-        error_code (CommandError): The error code.
+        error_code (int): The error code from CommandError.
+        output_file (str): The output file prefix for log files.
     """
     print(f'Error: {CommandError.to_string(error_code)}')
     send_cmd(f'mv {output_file}{device_uart_suffix} {output_file}{device_uart_error_suffix}')
@@ -223,14 +231,15 @@ def toggle_test(
     5. Close the telnet session.
 
     Args:
-        output_dir (str): The output path of the chip-tool logs.
-        output_file_prefix (str): The output file prefix (typically the time when the test were started)
-        target_ip (str): The target device IP.
+        output_dir (str): The output directory path for chip-tool logs.
+        output_file_prefix (str): The output file prefix (typically the time when the test were started).
+        target_ip (str): The target device IP address.
+        target_device_serial_num (str): The target device serial number.
         run_count (int): The number of times to run the test.
         sleep_time (int): The time to wait between toggles in seconds.
 
     Returns:
-        CommandError: SUCCESS if there were no error, the failed command error otherwise.
+        Literal[0, 1]: CommandError.SUCCESS if there were no error, the failed command error otherwise.
     """
     device_output_file = output_dir + output_file_prefix + '_toggle_test_'
     setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
@@ -278,18 +287,21 @@ def single_fabric_commissioning_test(
     4. Unpair the device.
 
     Args:
+        nodeID (str): The node ID for commissioning.
         endpointID (str): The endpoint ID.
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
         discriminator (str): The discriminator.
-        output_dir (str): The output path of the chip-tool logs.
-        target_device_ip (str): The target device IP.
+        output_dir (str): The output directory path for chip-tool logs.
+        output_file_prefix (str): The output file prefix.
+        target_device_ip (str): The target device IP address.
         run_count (int): The number of times to run the test.
-        toggle_count (int): The number of times to toggle the device on and off.
-        chip_tool_path (str): The path to the chip-tool binary.
+        commission_device (bool): Whether to commission the device.
+        toggle_count (int, optional): The number of times to toggle the device on and off. Defaults to 1.
+        chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
 
     Returns:
-        CommandError: SUCCESS if there were no error, the failed command error otherwise.
+        Literal[0,1,2,3]: CommandError.SUCCESS if there were no error, the failed command error otherwise.
     """
     result = CommandError.SUCCESS
     for i in range(run_count):
@@ -347,18 +359,21 @@ def multiple_fabric_commissioning_test(
     Note: We currently run this test on 5 fabrics since this is the default defined on chip-tool.
 
     Args:
+        nodeID (str): The node ID for commissioning.
         endpointID (str): The endpoint ID.
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
         discriminator (str): The discriminator.
-        output_dir (str): The output path of the chip-tool logs.
-        target_device_ip (str): The target device IP.
+        output_dir (str): The output directory path for chip-tool logs.
+        output_file_prefix (str): The output file prefix.
+        target_device_ip (str): The target device IP address.
         run_count (int): The number of times to run the test.
-        toggle_count (int): The number of times to toggle the device on and off for each fabric.
-        chip_tool_path (str): The path to the chip-tool binary.
+        commission_device (bool): Whether to commission the device.
+        toggle_count (int, optional): The number of times to toggle the device on and off for each fabric. Defaults to 2.
+        chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
 
     Returns:
-        CommandError: SUCCESS if there were no error, the failed command error otherwise.
+        Literal[0,1,2,3]: CommandError.SUCCESS if there were no error, the failed command error otherwise.
     """
     result = CommandError.SUCCESS
     fabric_names = {1: 'alpha', 2: 'beta', 3: 'gamma', 4: 4, 5: 5}
@@ -433,10 +448,26 @@ def yaml_test_script_test(
     1. Commission the device using BLE.
     2. For each test in the test list, run the test using chiptool.py.
     3. Unpair the device after all tests.
+    
     Args:
-        nodeID, otbrhex, pin, discriminator, chip_path, chip_tool_path, output_dir, output_file_prefix, test_list, test_plan_run_count, target_device_ip, target_device_serial_num, extra_env_path
+        nodeID (str): The node ID for commissioning.
+        otbrhex (str): The OTBR hex string.
+        pin (str): The PIN code.
+        discriminator (str): The discriminator.
+        chip_path (str): The path to the chip repository.
+        commission_device (bool): Whether to commission the device.
+        output_dir (str): The output directory path for logs.
+        output_file_prefix (str): The output file prefix.
+        test_list (List[str]): The list of tests to run.
+        test_list_run_count (int): The number of times to run the entire test list.
+        test_plan_run_count (int): The number of times to run each individual test.
+        target_device_ip (str): The target device IP address.
+        target_device_serial_num (str): The target device serial number.
+        extra_env_path (str): Additional environment path for Python modules.
+        chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
+        
     Returns:
-        CommandError: SUCCESS if all tests pass, otherwise the error code.
+        Literal[0,1,2,3,4,5]: CommandError.SUCCESS if all tests pass, otherwise the error code.
     """
     result = CommandError.SUCCESS
 

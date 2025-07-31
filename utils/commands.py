@@ -88,6 +88,15 @@ def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str, 
             return CommandError.SUCCESS
     return CommandError.BLE_COMMISSIONING_FAILURE
 
+def commission_bleWifi(nodeID, ssid, password, pin, discriminator, output_file: str, chipt_tool_path:str = '~/chip-tool') -> Literal[0,1]:
+    '''$ ./chip-tool pairing ble-wifi <node_id> <ssid> <password> <pin_code> <discriminator>
+    '''
+    buff = send_cmd(f'{chipt_tool_path} pairing ble-wifi {nodeID} {ssid} {password} {pin} {discriminator}', output_file)
+    for line in reversed(buff):
+        if "Device commissioning completed with success" in line:
+            return CommandError.SUCCESS
+    return CommandError.BLE_COMMISSIONING_FAILURE
+
 
 def open_commissioning_window(output_file: str, chipt_tool_path:str = '~/chip-tool'):
     buff = send_cmd(f'{chipt_tool_path} pairing open-commissioning-window 1 1 400 2000 3841', output_file)
