@@ -13,7 +13,7 @@
         "version": "0.2.0",
         "configurations": [
             {
-                "name": "Launch Python Script Debug",
+                "name": "Launch Python Thread Script Debug",
                 "type": "debugpy",
                 "request": "launch",
                 "program": "${workspaceFolder}/main.py",
@@ -47,6 +47,34 @@
                     "False",
                     "--factory_reset_device",
                     "True",
+                ]
+            },
+            {
+                "name": "Launch Python Wifi Script Debug",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder}/wifi_lock_test.py",
+                "stopOnEntry": true,
+                "justMyCode": false,
+                "console": "integratedTerminal",
+                "python": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python",
+                "args": [
+                    "--discriminator",
+                    "3840",
+                    "--pin",
+                    "20202021",
+                    "--nodeID",
+                    "1",
+                    "--endpointID",
+                    "1",
+                    "--target_device_ip",
+                    "10.4.215.46",
+                    "--target_device_serial_num",
+                    "440304835",
+                    "--factory_reset_device",
+                    "False",
+                    "--single_run_count",
+                    "1"
                 ]
             },
             {

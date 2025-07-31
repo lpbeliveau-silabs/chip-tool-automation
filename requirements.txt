@@ -1,6 +1,7 @@
 pexpect
 argparse
 pylink-square
+pylink
 click
 diskcache
 pyyaml
