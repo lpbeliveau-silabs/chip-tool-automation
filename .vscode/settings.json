@@ -1,8 +1,10 @@
 {
     "editor.codeActionsOnSave": {},
     "python.testing.pytestEnabled": true,
+    "python.pythonPath": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
+    "python.defaultInterpreterPath": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
     "[python]": {
-        "editor.defaultFormatter": "ms-python.autopep8"
+        "editor.defaultFormatter": "ms-python.python"
     },
     "autopep8.args": [
         "--max-line-length",
@@ -17,6 +19,7 @@
                 "type": "debugpy",
                 "request": "launch",
                 "program": "${workspaceFolder}/main.py",
+                "python": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
                 "stopOnEntry": true,
                 "justMyCode": false,
                 "console": "integratedTerminal",
@@ -54,6 +57,7 @@
                 "type": "debugpy",
                 "request": "launch",
                 "program": "${workspaceFolder}/main.py",
+                "python": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
                 "stopOnEntry": true,
                 "justMyCode": false,
                 "console": "integratedTerminal",

@@ -3,18 +3,20 @@
     "pin": "20202021",
     "nodeID": "1",
     "endpointID": "1",
-    "target_device_ip": "10.4.215.46",
-    "target_device_serial_num": "440266221",
+    "target_device_ip": "172.16.0.5",
+    "target_device_serial_num": "440298742",
     "use_json_list": false,
     "commission_device": false,
-    "single_run_count": 10,
+    "single_run_count": 0,
     "multiple_run_count": 10,
     "test_list_run_count": 0,
     "test_plan_run_count": 0,
+    "run_python_test_plan": 0,
+    "run_yaml_test_plan": 0,
     "toggle_test_run_count": 0,
     "toggle_sleep_time": 1,
     "test_list": [
-        "Test_TC_CC_7_3"
+        "TC_ACL_2_1"
     ],
     "factory_reset_device": true
 }

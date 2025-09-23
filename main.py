@@ -18,6 +18,8 @@ single_run_count: int = 0
 multiple_run_count: int = 0
 test_list_run_count: int = 0
 test_plan_run_count: int = 0
+run_yaml_test_plan: bool = False 
+run_python_test_plan: bool = False
 toggle_test_run_count: int = 0
 toggle_sleep_time: int = 1
 commission_device: bool = True
@@ -522,6 +524,101 @@ def yaml_test_script_test(
     return result
 
 
+def python_test_script_test(
+    nodeID: str,
+    otbrhex: str,
+    pin: str,
+    discriminator: str,
+    chip_path: str,
+    commission_device: bool,
+    output_dir: str,
+    output_file_prefix: str,
+    test_list: List[str],
+    test_list_run_count: int,
+    test_plan_run_count: int,
+    target_device_ip: str,
+    target_device_serial_num: str,
+    extra_env_path: str,
+    chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
+) -> Literal[0,1,2,3,4,5]:
+    """
+    Run a set of Python test scripts using run_python_test.py and handle errors.
+    Steps:
+    1. For each test in the test list, run the test using run_python_test.py.
+    
+    Args:
+        nodeID (str): The node ID for commissioning.
+        otbrhex (str): The OTBR hex string.
+        pin (str): The PIN code.
+        discriminator (str): The discriminator.
+        chip_path (str): The path to the chip repository.
+        commission_device (bool): Whether to commission the device.
+        output_dir (str): The output directory path for logs.
+        output_file_prefix (str): The output file prefix.
+        test_list (List[str]): The list of tests to run.
+        test_list_run_count (int): The number of times to run the entire test list.
+        test_plan_run_count (int): The number of times to run each individual test.
+        target_device_ip (str): The target device IP address.
+        target_device_serial_num (str): The target device serial number.
+        extra_env_path (str): Additional environment path for Python modules.
+        chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
+        
+    Returns:
+        Literal[0,1,2,3,4,5]: CommandError.SUCCESS if all tests pass, otherwise the error code.
+    """
+    result = CommandError.SUCCESS
+    
+    for i in range(test_list_run_count):
+        test_prefix = output_file_prefix + f'_python_test_plan_run_{i + 1}_'
+        output_file = output_dir + test_prefix
+
+        for test in test_list:
+            print(f'Running Python test: {test}')
+            for j in range(test_plan_run_count):  # Run each python test plan multiple times
+                device_output_file = output_file + test + f'_run_{j + 1}'
+                python_tool_output_file = output_file + test + f'_run_{j + 1}' + '_python-tool-logs.txt'
+                setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
+                
+                # Build the script arguments string
+                script_args = f"--storage-path admin_storage.json --commissioning-method ble-thread --thread-dataset-hex {otbrhex} --discriminator {discriminator} --passcode {pin} --endpoint 0 ble-interface-id 0 --timeout 100000"
+                
+                # Construct the command to run the Python test
+                script_path = f"{chip_path}/src/python_testing/{test}.py"
+                run_python_test_script = f"{chip_path}/scripts/tests/run_python_test.py"
+                
+                cmd = f'python3 {run_python_test_script} --factoryreset --script "{script_path}" --script-args "{script_args}"'
+                
+                buff = send_cmd(
+                    chip_cmd=cmd,
+                    output_file=python_tool_output_file,
+                    extra_env_path=extra_env_path,
+                    cwd=chip_path
+                )
+                
+                if not verify_device_logs(device_output_file):
+                    handle_error(CommandError.DEVICE_UNRESPONSIVE, device_output_file)
+                    result = CommandError.DEVICE_UNRESPONSIVE
+                    break
+                else:
+                    # Check for test failures in the output
+                    for line in reversed(buff):
+                        if "FAILED" in line or "ERROR" in line:
+                            handle_error(CommandError.TEST_FAILURE, device_output_file)
+                            # If a failure is detected, we identify the failure logs but we don't stop the test run.
+                            break
+                teardown_device_logs()
+
+            if result != CommandError.SUCCESS:
+                break
+        if result != CommandError.SUCCESS:
+            break
+    
+    if result != CommandError.SUCCESS:
+        print(f'Python Test Script Test Error: {CommandError.to_string(result)}')
+
+    return result
+
+
 if __name__ == '__main__':
     output_dir: str = './test_logs/'
 
@@ -543,6 +640,8 @@ if __name__ == '__main__':
     parser.add_argument('--multiple_run_count', type=int, required=False)
     parser.add_argument('--test_list_run_count', type=int, required=False)
     parser.add_argument('--test_plan_run_count', type=int, required=False)
+    parser.add_argument('--run_yaml_test_plan', type=str2bool, required=False, default=False)
+    parser.add_argument('--run_python_test_plan', type=str2bool, required=False, default=False)
     parser.add_argument('--toggle_test_run_count', type=int, required=False)
     parser.add_argument('--toggle_sleep_time', type=int, required=False)
     parser.add_argument('--factory_reset_device', type=str2bool, required=False, default=False)
@@ -598,12 +697,21 @@ if __name__ == '__main__':
         toggle_sleep_time = args.toggle_sleep_time
     if 'factory_reset_device' in vars(args) and args.factory_reset_device:
         factory_reset_device() 
+    if 'run_yaml_test_plan' in vars(args) and args.run_yaml_test_plan:
+        run_yaml_test_plan = args.run_yaml_test_plan
+    if 'run_python_test_plan' in vars(args) and args.run_python_test_plan:
+        run_python_test_plan = args.run_python_test_plan
 
     test_list = []
     if 'use_json_list' in vars(args) and args.use_json_list:
-        with open("yaml_test_list.json", "r") as f:
-            jsonData = json.load(f)
-            test_list = jsonData.get("YamlTestCasesToRun", [])
+        if run_python_test_plan:
+            with open("python_test_list.json", "r") as f:
+                jsonData = json.load(f)
+                test_list = jsonData.get("PythonTestCasesToRun", [])
+        else:
+            with open("yaml_test_list.json", "r") as f:
+                jsonData = json.load(f)
+                test_list = jsonData.get("YamlTestCasesToRun", [])
     elif 'test_list' in vars(args) and args.test_list:
         if isinstance(args.test_list, str):
             test_list = [t.strip() for t in args.test_list.split(',') if t.strip()]
@@ -647,27 +755,50 @@ if __name__ == '__main__':
         commission_device = True
 
     if test_plan_run_count >= 1:
-        result = yaml_test_script_test(
-            nodeID=nodeID,
-            otbrhex=otbrhex,
-            pin=pin,
-            discriminator=discriminator,
-            chip_path=chip_path,
-            commission_device=commission_device,
-            chip_tool_path=chip_tool_path,
-            output_dir=output_dir,
-            output_file_prefix=output_file_prefix,
-            test_list=test_list,
-            test_list_run_count=test_list_run_count,
-            test_plan_run_count=test_plan_run_count,
-            target_device_ip=target_device_ip,
-            target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
-            extra_env_path=extra_env_path
-        )
-        if result != CommandError.SUCCESS:
-            exit(-1)
-        # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
-        commission_device = True
+        if run_yaml_test_plan:
+            result = yaml_test_script_test(
+                nodeID=nodeID,
+                otbrhex=otbrhex,
+                pin=pin,
+                discriminator=discriminator,
+                chip_path=chip_path,
+                commission_device=commission_device,
+                chip_tool_path=chip_tool_path,
+                output_dir=output_dir,
+                output_file_prefix=output_file_prefix,
+                test_list=test_list,
+                test_list_run_count=test_list_run_count,
+                test_plan_run_count=test_plan_run_count,
+                target_device_ip=target_device_ip,
+                target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
+                extra_env_path=extra_env_path
+            )
+            if result != CommandError.SUCCESS:
+                exit(-1)
+            # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
+            commission_device = True
+        if run_python_test_plan:
+            result = python_test_script_test(
+                nodeID=nodeID,
+                otbrhex=otbrhex,
+                pin=pin,
+                discriminator=discriminator,
+                chip_path=chip_path,
+                commission_device=commission_device,
+                chip_tool_path=chip_tool_path,
+                output_dir=output_dir,
+                output_file_prefix=output_file_prefix,
+                test_list=test_list,
+                test_list_run_count=test_list_run_count,
+                test_plan_run_count=test_plan_run_count,
+                target_device_ip=target_device_ip,
+                target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
+                extra_env_path=extra_env_path
+            )
+            if result != CommandError.SUCCESS:
+                exit(-1)
+            # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
+            commission_device = True
 
     if toggle_test_run_count >= 1:
         result = toggle_test(
