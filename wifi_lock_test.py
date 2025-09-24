@@ -275,7 +275,7 @@ def single_fabric_commissioning_test(
         setup_device_logs(output_file, target_device_ip)
         # If this is the first run and the device is commissioned, we skip commissioning.
         if i != 0 or commission_device:
-            result = commission_bleWifi(nodeID, ssid, pin, pw, discriminator, chip_tool_output_file, chip_tool_path)
+            result = commission_bleWifi(nodeID, ssid, pw, pin,  discriminator, chip_tool_output_file, chip_tool_path)
             if result != CommandError.SUCCESS:
                 teardown_device_logs()
                 break

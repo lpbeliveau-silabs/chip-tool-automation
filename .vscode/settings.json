@@ -57,7 +57,7 @@
                 "stopOnEntry": true,
                 "justMyCode": false,
                 "console": "integratedTerminal",
-                "python": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python",
+                "python": "/home/ubuntu/.pyenv/versions/3.11.11/bin/python",
                 "args": [
                     "--discriminator",
                     "3840",
@@ -74,7 +74,9 @@
                     "--factory_reset_device",
                     "False",
                     "--single_run_count",
-                    "1"
+                    "1",
+                    "--commission_device",
+                    "True"
                 ]
             },
             {
