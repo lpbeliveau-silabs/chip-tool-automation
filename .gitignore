@@ -1,3 +1,4 @@
 *.pyc
 chip_tool_output/
 __pycache__/
+test_logs/

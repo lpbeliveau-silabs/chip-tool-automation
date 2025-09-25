@@ -7,3 +7,16 @@ pyyaml
 lark
 jinja2
 websockets
+coloredlogs
+colorama
+# Additional dependencies for CHIP Python testing
+construct
+mobly
+pyasn1
+pyasn1_modules
+alive_progress
+tabulate
+rich
+aenum
+dacite
+ecdsa

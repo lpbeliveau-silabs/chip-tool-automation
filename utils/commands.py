@@ -1,7 +1,7 @@
 import subprocess
 import re
 import os
-from typing import Literal
+from typing import Literal, Optional
 
 class CommandError:
     SUCCESS = 0x00
@@ -21,12 +21,17 @@ class CommandError:
             return "Open Commissioning Window Error"
         elif error_code == CommandError.COMMISSION_PAIRING_CODE_ERROR:
             return "Commission Pairing Code Error"
+        elif error_code == CommandError.TEST_FAILURE:
+            return "Test Failure"
+        elif error_code == CommandError.DEVICE_UNRESPONSIVE:
+            return "Device Unresponsive"
         else:
             return "Unknown Error"
 
 
-def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd: str = None):
+def send_cmd(chip_cmd, output_file: Optional[str] = None,  extra_env_path: Optional[str] = None, cwd: Optional[str] = None):
     env = os.environ.copy()
+
     if extra_env_path:
         env["PYTHONPATH"] = extra_env_path
 
@@ -41,14 +46,23 @@ def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd
     )
     stdout, stderr = process.communicate()
     buff = stdout.decode().splitlines(keepends=True)
+    stderr_buff = stderr.decode().splitlines(keepends=True)
+    
+    # Combine stdout and stderr for complete output
+    combined_output = buff + ["\n=== STDERR ===\n"] + stderr_buff if stderr_buff else buff
 
     if output_file:
         with open(output_file, 'w') as f:
-            f.write(''.join(buff))
+            f.write(''.join(combined_output))
     else:
-        print(''.join(buff))
+        print(''.join(combined_output))
 
-    for line in reversed(buff):
+    # Print stderr to console regardless of output_file setting
+    if stderr_buff:
+        print("STDERR OUTPUT:")
+        print(''.join(stderr_buff))
+
+    for line in reversed(combined_output):
         tiemout_pattern = re.compile('Run command failure(.*)CHIP Error 0x00000032(.*)Timeout')
         matcher = tiemout_pattern.search(line)
         if matcher:
@@ -78,7 +92,7 @@ def send_cmd(chip_cmd, output_file: str = None,  extra_env_path: str = None, cwd
                     f.write(''.join(buff))
             else:
                 print(''.join(buff))
-    return buff
+    return combined_output
 
 
 def commission_bleThread(nodeID, otbrhex, pin, discriminator, output_file: str, chipt_tool_path:str = '~/chip-tool') -> Literal[0,1]:

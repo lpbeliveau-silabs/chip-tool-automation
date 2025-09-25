@@ -35,11 +35,19 @@ env = os.environ.copy()
 chip_path = os.path.expanduser('~/connectedhomeip')
 matter_yamltests_path = os.path.join(chip_path, 'scripts', 'py_matter_yamltests')
 matter_idl_path = os.path.join(chip_path, 'scripts', 'py_matter_idl')
+# Paths used only for YAML test execution (python tests should rely on installed wheels)
+chip_controller_python_path = os.path.join(chip_path, 'src', 'controller', 'python')
+matter_testing_infrastructure_path = os.path.join(chip_path, 'src', 'python_testing', 'matter_testing_infrastructure')
 
 existing_pythonpath = os.environ.get("PYTHONPATH", "")
-extra_env_path = f"{matter_yamltests_path}:{matter_idl_path}"
+
+# Environment path for YAML tests (we intentionally do NOT set a python_env_path globally
+# to avoid overshadowing installed wheel packages like chip.testing)
+yaml_env_path = f"{matter_yamltests_path}:{matter_idl_path}:{chip_controller_python_path}"
 if existing_pythonpath:
-    extra_env_path = f"{existing_pythonpath}:{extra_env_path}"
+    yaml_env_path = f"{yaml_env_path}:{existing_pythonpath}"
+
+# IMPORTANT: Do not globally set PYTHONPATH. YAML tests inject yaml_env_path explicitly via send_cmd.
 
 def str2bool(value: str) -> bool:
     """
@@ -441,7 +449,7 @@ def yaml_test_script_test(
     test_plan_run_count: int,
     target_device_ip: str,
     target_device_serial_num: str,
-    extra_env_path: str,
+    yaml_env_path: str,
     chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
 ) -> Literal[0,1,2,3,4,5]:
     """
@@ -465,7 +473,7 @@ def yaml_test_script_test(
         test_plan_run_count (int): The number of times to run each individual test.
         target_device_ip (str): The target device IP address.
         target_device_serial_num (str): The target device serial number.
-        extra_env_path (str): Additional environment path for Python modules.
+        yaml_env_path (str): Additional environment path for Python modules.
         chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
         
     Returns:
@@ -495,7 +503,7 @@ def yaml_test_script_test(
                 buff = send_cmd(
                     chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId 1',
                     output_file=chip_tool_output_file,
-                    extra_env_path=extra_env_path,
+                    extra_env_path=yaml_env_path,
                     cwd=chip_path
                 )
                 if not verify_device_logs(device_output_file):
@@ -538,13 +546,12 @@ def python_test_script_test(
     test_plan_run_count: int,
     target_device_ip: str,
     target_device_serial_num: str,
-    extra_env_path: str,
     chip_tool_path: str ="~/connectedhomeip/out/standalone/chip-tool"
 ) -> Literal[0,1,2,3,4,5]:
     """
-    Run a set of Python test scripts using run_python_test.py and handle errors.
+    Run a set of Python test scripts via the official run_python_test.py harness.
     Steps:
-    1. For each test in the test list, run the test using run_python_test.py.
+    1. For each test in the test list, call run_python_test.py with required options then the script path.
     
     Args:
         nodeID (str): The node ID for commissioning.
@@ -560,7 +567,6 @@ def python_test_script_test(
         test_plan_run_count (int): The number of times to run each individual test.
         target_device_ip (str): The target device IP address.
         target_device_serial_num (str): The target device serial number.
-        extra_env_path (str): Additional environment path for Python modules.
         chip_tool_path (str, optional): The path to the chip-tool binary. Defaults to "~/connectedhomeip/out/standalone/chip-tool".
         
     Returns:
@@ -576,36 +582,88 @@ def python_test_script_test(
             print(f'Running Python test: {test}')
             for j in range(test_plan_run_count):  # Run each python test plan multiple times
                 device_output_file = output_file + test + f'_run_{j + 1}'
-                python_tool_output_file = output_file + test + f'_run_{j + 1}' + '_python-tool-logs.txt'
+                # Use the same log suffix as chip-tool logs so downstream handling (handle_error) doesn't break
+                python_tool_output_file = output_file + test + f'_run_{j + 1}' + chip_tool_suffix
                 setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
                 
-                # Build the script arguments string
-                script_args = f"--storage-path admin_storage.json --commissioning-method ble-thread --thread-dataset-hex {otbrhex} --discriminator {discriminator} --passcode {pin} --endpoint 0 ble-interface-id 0 --timeout 100000"
-                
-                # Construct the command to run the Python test
+                # Construct paths
                 script_path = f"{chip_path}/src/python_testing/{test}.py"
                 run_python_test_script = f"{chip_path}/scripts/tests/run_python_test.py"
-                
-                cmd = f'python3 {run_python_test_script} --factoryreset --script "{script_path}" --script-args "{script_args}"'
-                
-                buff = send_cmd(
-                    chip_cmd=cmd,
-                    output_file=python_tool_output_file,
-                    extra_env_path=extra_env_path,
-                    cwd=chip_path
+
+                # Decide commissioning arguments based on commission_device flag
+                commissioning_args = ""
+                storage_path = "admin_storage.json"
+                storage_exists = os.path.exists(storage_path)
+                if commission_device:
+                    commissioning_args = (
+                        f"--commissioning-method ble-thread "
+                        f"--thread-dataset-hex {otbrhex} "
+                        f"--discriminator {discriminator} --passcode {pin} "
+                    )
+                else:
+                    if not storage_exists:
+                        # Without commissioning and without a prior storage file, test cannot proceed meaningfully; fallback.
+                        print("WARNING: commission_device is False but no existing admin_storage.json found. Enabling commissioning for this run.")
+                        commissioning_args = (
+                            f"--commissioning-method ble-thread "
+                            f"--thread-dataset-hex {otbrhex} "
+                            f"--discriminator {discriminator} --passcode {pin} "
+                        )
+                    else:
+                        print("INFO: Skipping commissioning (re-using existing admin_storage.json).")
+
+                # Arguments that belong to the test script itself (NOT to run_python_test.py)
+                script_args = (
+                    f"--storage-path {storage_path} "
+                    f"--endpoint 0 --timeout 100000 "
+                    f"--paa-trust-store-path {chip_path}/credentials/development/paa-root-certs "
+                    f"{commissioning_args}"
+                ).strip()
+
+                # Proper harness invocation: test-specific args go inside --script-args quotes
+                # Example:
+                # python3 run_python_test.py --script <script> --script-args "--storage-path admin_storage.json ..."
+                cmd = (
+                    f'python3 "{run_python_test_script}" '
+                    f'--script "{script_path}" '
+                    f'--script-args "{script_args}"'
                 )
+                
+                # Do NOT force PYTHONPATH here; rely on installed wheels (chip.testing, etc.)
+                buff = send_cmd(chip_cmd=cmd, output_file=python_tool_output_file, cwd=chip_path)
+                
+                print(f"DEBUG: send_cmd returned {len(buff)} lines of output")
+                print("DEBUG: Last 10 lines of output:")
+                for line in buff[-10:]:
+                    print(f"DEBUG: {line.strip()}")
                 
                 if not verify_device_logs(device_output_file):
                     handle_error(CommandError.DEVICE_UNRESPONSIVE, device_output_file)
                     result = CommandError.DEVICE_UNRESPONSIVE
                     break
                 else:
-                    # Check for test failures in the output
-                    for line in reversed(buff):
-                        if "FAILED" in line or "ERROR" in line:
+                    # Determine explicit final result from the test output
+                    final_result = None
+                    for line in buff:
+                        if "Final result:" in line:
+                            if "PASS" in line:
+                                final_result = "PASS"
+                            elif "FAIL" in line or "FAILED" in line:
+                                final_result = "FAIL"
+                            # Don't break; keep last occurrence
+                    if final_result == "PASS":
+                        print("DEBUG: Detected explicit PASS in test output; ignoring intermediate ERROR log lines.")
+                    else:
+                        # If we didn't explicitly see PASS, look for strong failure indicators
+                        failure_indicators = ("Traceback (most recent call last)", "AssertionError", "FAILED (", "Final result: FAIL", "exited with returncode")
+                        failure_found = any(any(token in line for token in failure_indicators) for line in buff)
+                        if failure_found:
+                            print("PYTHON TEST FAILURE DETECTED: explicit failure indicators present.")
+                            print("Full test output buffer (last 20 lines):")
+                            for line in buff[-20:]:
+                                print(f"  {line.strip()}")
                             handle_error(CommandError.TEST_FAILURE, device_output_file)
-                            # If a failure is detected, we identify the failure logs but we don't stop the test run.
-                            break
+                            # Continue overall plan (do not break entire harness) unless we want early exit
                 teardown_device_logs()
 
             if result != CommandError.SUCCESS:
@@ -613,7 +671,11 @@ def python_test_script_test(
         if result != CommandError.SUCCESS:
             break
     
-    if result != CommandError.SUCCESS:
+
+    # Unpair after all tests if commissioning succeeded
+    if result == CommandError.SUCCESS:
+        factory_reset_device()
+    else:
         print(f'Python Test Script Test Error: {CommandError.to_string(result)}')
 
     return result
@@ -649,15 +711,20 @@ if __name__ == '__main__':
     parser.add_argument('--use_script_input_json', type=str2bool, required=False, default=False)
     args = parser.parse_args()
 
-    # Load from script_input.json if requested
+    # Load from script_input.json if requested (minimal handling)
     if 'use_script_input_json' in vars(args) and args.use_script_input_json:
-        with open('script_input.json', 'r') as f:
-            json_args = json.load(f)
-        # Override args with json_args
+        try:
+            with open('script_input.json', 'r') as f:
+                json_args = json.load(f)
+        except FileNotFoundError:
+            print('ERROR: script_input.json not found.')
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f'ERROR: script_input.json JSON parse error: {e}')
+            sys.exit(1)
         for k, v in json_args.items():
-            # Convert test_list to comma-separated string for compatibility
-            if k == "test_list" and isinstance(v, list):
-                setattr(args, k, ",".join(v))
+            if k == 'test_list' and isinstance(v, list):
+                setattr(args, k, ','.join(v))
             else:
                 setattr(args, k, v)
 
@@ -736,7 +803,7 @@ if __name__ == '__main__':
             exit(-1)
         # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
         commission_device = True
-    if multiple_run_count > 0 and not commission_device:
+    if multiple_run_count > 0:
         result = multiple_fabric_commissioning_test(
             nodeID, 
             endpointID, 
@@ -771,7 +838,7 @@ if __name__ == '__main__':
                 test_plan_run_count=test_plan_run_count,
                 target_device_ip=target_device_ip,
                 target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
-                extra_env_path=extra_env_path
+                yaml_env_path=yaml_env_path
             )
             if result != CommandError.SUCCESS:
                 exit(-1)
@@ -792,8 +859,7 @@ if __name__ == '__main__':
                 test_list_run_count=test_list_run_count,
                 test_plan_run_count=test_plan_run_count,
                 target_device_ip=target_device_ip,
-                target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else "",
-                extra_env_path=extra_env_path
+                target_device_serial_num=target_device_serial_num if 'target_device_serial_num' in locals() else ""
             )
             if result != CommandError.SUCCESS:
                 exit(-1)
