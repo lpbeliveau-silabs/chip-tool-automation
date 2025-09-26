@@ -580,90 +580,69 @@ def python_test_script_test(
 
         for test in test_list:
             print(f'Running Python test: {test}')
-            for j in range(test_plan_run_count):  # Run each python test plan multiple times
+            for j in range(test_plan_run_count):
                 device_output_file = output_file + test + f'_run_{j + 1}'
-                # Use the same log suffix as chip-tool logs so downstream handling (handle_error) doesn't break
                 python_tool_output_file = output_file + test + f'_run_{j + 1}' + chip_tool_suffix
                 setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
                 
-                # Construct paths
+                # Call the test script directly
                 script_path = f"{chip_path}/src/python_testing/{test}.py"
-                run_python_test_script = f"{chip_path}/scripts/tests/run_python_test.py"
-
-                # Decide commissioning arguments based on commission_device flag
-                commissioning_args = ""
-                storage_path = "admin_storage.json"
-                storage_exists = os.path.exists(storage_path)
+                
+                # Build arguments for direct execution
+                script_args = [
+                    sys.executable,
+                    script_path,
+                    "--storage-path", "admin_storage.json",
+                    "--endpoint", "0",
+                    "--timeout", "100000",
+                    "--paa-trust-store-path", f"{chip_path}/credentials/development/paa-root-certs"
+                ]
+                
+                # Add commissioning arguments if needed
                 if commission_device:
-                    commissioning_args = (
-                        f"--commissioning-method ble-thread "
-                        f"--thread-dataset-hex {otbrhex} "
-                        f"--discriminator {discriminator} --passcode {pin} "
+                    script_args.extend([
+                        "--commissioning-method", "ble-thread",
+                        "--thread-dataset-hex", otbrhex,
+                        "--discriminator", discriminator,
+                        "--passcode", pin
+                    ])
+                
+                # Execute the test
+                try:
+                    process = subprocess.run(
+                        script_args,
+                        cwd=chip_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=300
                     )
-                else:
-                    if not storage_exists:
-                        # Without commissioning and without a prior storage file, test cannot proceed meaningfully; fallback.
-                        print("WARNING: commission_device is False but no existing admin_storage.json found. Enabling commissioning for this run.")
-                        commissioning_args = (
-                            f"--commissioning-method ble-thread "
-                            f"--thread-dataset-hex {otbrhex} "
-                            f"--discriminator {discriminator} --passcode {pin} "
-                        )
+                    
+                    # Write output to log file
+                    with open(python_tool_output_file, 'w') as f:
+                        f.write(f"COMMAND: {' '.join(script_args)}\n")
+                        f.write("=" * 80 + "\n")
+                        f.write("STDOUT:\n")
+                        f.write(process.stdout or "No stdout")
+                        f.write("\n" + "=" * 80 + "\n")
+                        f.write("STDERR:\n") 
+                        f.write(process.stderr or "No stderr")
+                        f.write(f"\nRETURN CODE: {process.returncode}\n")
+                    
+                    if process.returncode != 0:
+                        print(f'Test {test} failed with return code {process.returncode}')
+                        result = CommandError.TEST_FAILURE
                     else:
-                        print("INFO: Skipping commissioning (re-using existing admin_storage.json).")
+                        print(f'Test {test} completed successfully')
+                        
+                except Exception as e:
+                    print(f'Test {test} failed with exception: {e}')
+                    result = CommandError.TEST_FAILURE
 
-                # Arguments that belong to the test script itself (NOT to run_python_test.py)
-                script_args = (
-                    f"--storage-path {storage_path} "
-                    f"--endpoint 0 --timeout 100000 "
-                    f"--paa-trust-store-path {chip_path}/credentials/development/paa-root-certs "
-                    f"{commissioning_args}"
-                ).strip()
-
-                # Proper harness invocation: test-specific args go inside --script-args quotes
-                # Example:
-                # python3 run_python_test.py --script <script> --script-args "--storage-path admin_storage.json ..."
-                cmd = (
-                    f'python3 "{run_python_test_script}" '
-                    f'--script "{script_path}" '
-                    f'--script-args "{script_args}"'
-                )
-                
-                # Do NOT force PYTHONPATH here; rely on installed wheels (chip.testing, etc.)
-                buff = send_cmd(chip_cmd=cmd, output_file=python_tool_output_file, cwd=chip_path)
-                
-                print(f"DEBUG: send_cmd returned {len(buff)} lines of output")
-                print("DEBUG: Last 10 lines of output:")
-                for line in buff[-10:]:
-                    print(f"DEBUG: {line.strip()}")
-                
                 if not verify_device_logs(device_output_file):
                     handle_error(CommandError.DEVICE_UNRESPONSIVE, device_output_file)
                     result = CommandError.DEVICE_UNRESPONSIVE
                     break
-                else:
-                    # Determine explicit final result from the test output
-                    final_result = None
-                    for line in buff:
-                        if "Final result:" in line:
-                            if "PASS" in line:
-                                final_result = "PASS"
-                            elif "FAIL" in line or "FAILED" in line:
-                                final_result = "FAIL"
-                            # Don't break; keep last occurrence
-                    if final_result == "PASS":
-                        print("DEBUG: Detected explicit PASS in test output; ignoring intermediate ERROR log lines.")
-                    else:
-                        # If we didn't explicitly see PASS, look for strong failure indicators
-                        failure_indicators = ("Traceback (most recent call last)", "AssertionError", "FAILED (", "Final result: FAIL", "exited with returncode")
-                        failure_found = any(any(token in line for token in failure_indicators) for line in buff)
-                        if failure_found:
-                            print("PYTHON TEST FAILURE DETECTED: explicit failure indicators present.")
-                            print("Full test output buffer (last 20 lines):")
-                            for line in buff[-20:]:
-                                print(f"  {line.strip()}")
-                            handle_error(CommandError.TEST_FAILURE, device_output_file)
-                            # Continue overall plan (do not break entire harness) unless we want early exit
+                    
                 teardown_device_logs()
 
             if result != CommandError.SUCCESS:

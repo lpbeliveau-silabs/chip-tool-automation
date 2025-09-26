@@ -1,27 +1,19 @@
 {
     "YamlTestCasesToRun": [
-        "Test_TC_CC_3_1",
-        "Test_TC_CC_3_2",
-        "Test_TC_CC_3_3",
-        "Test_TC_CC_4_1",
-        "Test_TC_CC_4_2",
-        "Test_TC_CC_4_3",
-        "Test_TC_CC_4_4",
-        "Test_TC_CC_5_1",
-        "Test_TC_CC_5_2",
-        "Test_TC_CC_5_3",
-        "Test_TC_CC_6_1",
-        "Test_TC_CC_6_2",
-        "Test_TC_CC_6_3",
-        "Test_TC_CC_6_4",
-        "Test_TC_CC_6_5",
-        "Test_TC_CC_7_1",
-        "Test_TC_CC_7_2",
-        "Test_TC_CC_7_3",
-        "Test_TC_CC_7_4",
-        "Test_TC_CC_8_1",
-        "Test_TC_CC_9_1",
-        "Test_TC_CC_9_2",
-        "Test_TC_CC_9_3"
+        "Test_TC_DESC_2_1",
+        "Test_TC_DGGEN_2_2",
+        "Test_TC_DGGEN_2_3",
+        "Test_TC_DGGEN_3_1",
+        "Test_TC_DGGEN_3_2",
+        // second part
+        "Test_TC_ULABEL_2_1",
+        "Test_TC_ULABEL_2_2",
+        "Test_TC_ULABEL_2_3",
+        "Test_TC_ULABEL_2_4",
+        // third part
+        "Test_TC_BINFO_2_2",
+        "Test_TC_ACE_1_1",
+        //fourth part
+        "Test_TC_ACL_2_1"
     ]
 }

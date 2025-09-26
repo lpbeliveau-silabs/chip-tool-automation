@@ -18,6 +18,8 @@ Python script to automate chip-tool commands to perform tests.
 - `--multiple_run_count`: The number of multiple fabric commissioning test runs (default: 0).
 - `--test_list_run_count`: The number of times to run the whole test list (default: 0).
 - `--test_plan_run_count`: The number of times to run a single YAML test plan (default: 0).
+- `--run_yaml_test_plan`: Whether to run YAML test plans (default: False).
+- `--run_python_test_plan`: Whether to run Python test plans (default: False).
 - `--toggle_test_run_count`: The number of times to run the toggle test (default: 0).
 - `--toggle_sleep_time`: The sleep time between toggle actions in seconds (default: 1).
 - `--factory_reset_device`: Whether to factory reset the device before running tests (default: False).
@@ -110,6 +112,29 @@ The YAML Test List Test Loop runs a set of YAML-based test scripts as specified 
 5. If any error occurs during a test, error handling is performed and the loop is terminated early.
 
 This loop is useful for running a batch of YAML-defined tests in a repeatable and automated fashion.
+
+### Python Test List Test Loop
+
+The Python Test List Test Loop runs a set of Python-based test scripts as specified in the `test_list` argument or loaded from `python_test_list.json`. This loop is controlled by the `test_plan_run_count` argument, which determines how many times the entire test plan is executed. For each run:
+1. For each test name in the test list, the script runs the corresponding Python test using `run_python_test.py`.
+2. The test is executed with the command: `./scripts/tests/run_python_test.py --factoryreset --script "src/python_testing/[TestName].py" --script-args "[arguments]"`
+3. Device logs are collected for each test.
+4. If any error occurs during a test, error handling is performed and the loop continues with the next test.
+
+To run Python tests, you must use the ConnectedHomeIP virtual environment:
+
+```sh
+# Activate the virtual environment
+source /home/ubuntu/connectedhomeip/out/venv/bin/activate
+
+# Run the script with Python test plan enabled
+python main.py --run_python_test_plan true --use_json_list true --test_plan_run_count 1 --test_list_run_count 1
+
+# When done, deactivate the environment
+deactivate
+```
+
+This loop is useful for running a batch of Python-defined tests in a repeatable and automated fashion.
 
 ### Toggle Test Loop
 The toggle test loop runs the `toggle_test` function for the specified number of times (`toggle_test_run_count`). This test does not require the device to be commissioned, only to be reachable via IP. The function performs the following steps:

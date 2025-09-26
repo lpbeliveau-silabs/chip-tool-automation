@@ -1,7 +1,6 @@
 {
     "editor.codeActionsOnSave": {},
     "python.testing.pytestEnabled": true,
-    "python.pythonPath": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
     "python.defaultInterpreterPath": "/home/ubuntu/.pyenv/versions/3.12.10/bin/python3",
     "[python]": {
         "editor.defaultFormatter": "ms-python.python"
@@ -58,6 +57,20 @@
                 "request": "launch",
                 "program": "${workspaceFolder}/main.py",
                 "python": "/home/ubuntu/.pyenv/versions/3.11.11/bin/python",
+                "stopOnEntry": true,
+                "justMyCode": false,
+                "console": "integratedTerminal",
+                "args": [
+                    "--use_script_input_json",
+                    "True",
+                ]
+            },
+            {
+                "name": "Launch Python Script from Json with venv",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder}/main.py",
+                "python": "/home/ubuntu/connectedhomeip/out/venv/bin/python",
                 "stopOnEntry": true,
                 "justMyCode": false,
                 "console": "integratedTerminal",

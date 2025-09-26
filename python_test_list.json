@@ -1,5 +1,19 @@
 {
     "PythonTestCasesToRun": [
-        "TC_ACL_2_1"
+        "TC_CNET_4_1",
+        "TC_CNET_4_2",
+        "TC_CNET_4_10",
+        "TC_CNET_4_22",
+        // second part
+        "TC_CADMIN_1_3_4",
+        "TC_CADMIN_1_5",
+        // third part
+        "TC_ACE_1_5",
+        // fourth part
+        "TC_ACL_2_2",
+        "TC_ACL_2_3",
+        "TC_ACL_2_4",
+        "TC_ACL_2_5",
+        "TC_ACL_2_6"
     ]
 }
