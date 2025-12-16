@@ -14,6 +14,7 @@ discriminator: str = '3840'
 pin: str = '20202021'
 endpointID: str = '1'
 target_device_ip: str = '10.4.215.46'
+toggle_count: int = 0
 single_run_count: int = 0
 multiple_run_count: int = 0
 test_list_run_count: int = 0
@@ -317,17 +318,25 @@ def single_fabric_commissioning_test(
                 teardown_device_logs()
                 break
         
-        for j in range(1, toggle_count):
-            send_cmd(f'{chip_tool_path} onoff toggle 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
-            send_cmd(f'{chip_tool_path} onoff read on-off 1 {endpointID} --commissioner-name alpha', chip_tool_output_file)
+        for j in range(0, toggle_count):
+            send_cmd(f'{chip_tool_path} onoff toggle {nodeID} {endpointID} --commissioner-name alpha', chip_tool_output_file)
+            send_cmd(f'{chip_tool_path} onoff read on-off {nodeID} {endpointID} --commissioner-name alpha', chip_tool_output_file)
 
-        send_cmd(f'{chip_tool_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
+
+        send_cmd(f'{chip_tool_path} pairing unpair {nodeID} --commissioner-name alpha', chip_tool_output_file)
+        # send_cmd(f'{chip_tool_path} descriptor read device-type-list {nodeID} 0xFFFF', chip_tool_output_file)
+        # send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID} 0', chip_tool_output_file)
+        # send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID} 1', chip_tool_output_file)
+        # send_cmd(f'{chip_tool_path} accesscontrol read feature-map {nodeID} 0', chip_tool_output_file)
+        # factory_reset_device()
         teardown_device_logs()
+        sleep(3)
+
 
     if result != CommandError.SUCCESS:
         print(f'Single Fabric Commissioning Test Error #{i + 1}: {CommandError.to_string(result)}')
         handle_error(result, output_file)
-        
+    
     return result
 
 
@@ -342,7 +351,7 @@ def multiple_fabric_commissioning_test(
         target_device_ip: str,
         run_count: int,
         commission_device: bool,
-        toggle_count: int = 2,
+        toggle_count: int = 1,
         chip_tool_path: str = "~/connectedhomeip/out/standalone/chip-tool"
     ) -> Literal[0,1,2,3]:
     """
@@ -408,7 +417,7 @@ def multiple_fabric_commissioning_test(
 
         # Toggle and read on-off state for each fabric
         for fabric_idx, fabric_name in fabric_names.items():
-            for j in range(1, toggle_count):
+            for j in range(0, toggle_count):
                 send_cmd(f'{chip_tool_path} onoff toggle {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
                 send_cmd(f'{chip_tool_path} onoff read on-off {fabric_idx} {endpointID} --commissioner-name {fabric_name}', chip_tool_output_file)
 
@@ -491,7 +500,7 @@ def yaml_test_script_test(
                 chip_tool_output_file = output_file + test + f'_run_{j + 1}' +  chip_tool_suffix
                 setup_device_logs(device_output_file, target_device_ip, target_device_serial_num)
                 buff = send_cmd(
-                    chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId 1',
+                    chip_cmd=f'python3 {chip_path}/scripts/tests/chipyaml/chiptool.py tests {test} --server_path {chip_tool_path} --nodeId {nodeID}',
                     output_file=chip_tool_output_file,
                     extra_env_path=extra_env_path,
                     cwd=chip_path
@@ -514,7 +523,7 @@ def yaml_test_script_test(
         
     # Unpair after all tests if commissioning succeeded
     if result == CommandError.SUCCESS:
-        send_cmd(f'{chip_tool_path} pairing unpair 1 --commissioner-name alpha', chip_tool_output_file)
+        send_cmd(f'{chip_tool_path} pairing unpair {nodeID} --commissioner-name alpha', chip_tool_output_file)
     else:
         # TODO: Add error handling to recover the device if it is unresponsive
         print(f'YAML Test Script Test Error: {CommandError.to_string(result)}')
@@ -597,6 +606,7 @@ if __name__ == '__main__':
     if 'toggle_sleep_time' in vars(args) and args.toggle_sleep_time is not None:
         toggle_sleep_time = args.toggle_sleep_time
     if 'factory_reset_device' in vars(args) and args.factory_reset_device:
+        print("Factory resetting device...")
         factory_reset_device() 
 
     test_list = []
@@ -622,7 +632,8 @@ if __name__ == '__main__':
             output_file_prefix,
             target_device_ip, 
             single_run_count,
-            commission_device
+            commission_device,
+            toggle_count=toggle_count
         )
         if result != CommandError.SUCCESS:
             exit(-1)
@@ -639,7 +650,8 @@ if __name__ == '__main__':
             output_file_prefix,
             target_device_ip, 
             multiple_run_count,
-            commission_device
+            commission_device,
+            toggle_count=toggle_count
         )
         if result != CommandError.SUCCESS:
             exit(-1)
