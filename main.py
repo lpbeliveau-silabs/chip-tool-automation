@@ -266,7 +266,7 @@ def toggle_test(
     return CommandError.SUCCESS
 
 def single_fabric_commissioning_test(
-        nodeID: str,
+        nodeID: int,
         endpointID: str,
         otbrhex: str,
         pin: str,
@@ -288,7 +288,7 @@ def single_fabric_commissioning_test(
     4. Unpair the device.
 
     Args:
-        nodeID (str): The node ID for commissioning.
+        nodeID (int): The node ID for commissioning.
         endpointID (str): The endpoint ID.
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
@@ -313,24 +313,23 @@ def single_fabric_commissioning_test(
         setup_device_logs(output_file, target_device_ip)
         # If this is the first run and the device is commissioned, we skip commissioning.
         if i != 0 or commission_device:
-            result = commission_bleThread(nodeID, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
+            result = commission_bleThread(nodeID+i, otbrhex, pin, discriminator, chip_tool_output_file, chip_tool_path)
             if result != CommandError.SUCCESS:
                 teardown_device_logs()
                 break
         
         for j in range(0, toggle_count):
-            send_cmd(f'{chip_tool_path} onoff toggle {nodeID} {endpointID} --commissioner-name alpha', chip_tool_output_file)
-            send_cmd(f'{chip_tool_path} onoff read on-off {nodeID} {endpointID} --commissioner-name alpha', chip_tool_output_file)
+            send_cmd(f'{chip_tool_path} onoff toggle {nodeID+i} {endpointID} --commissioner-name alpha', chip_tool_output_file)
+            send_cmd(f'{chip_tool_path} onoff read on-off {nodeID+i} {endpointID} --commissioner-name alpha', chip_tool_output_file)
 
 
-        send_cmd(f'{chip_tool_path} pairing unpair {nodeID} --commissioner-name alpha', chip_tool_output_file)
-        # send_cmd(f'{chip_tool_path} descriptor read device-type-list {nodeID} 0xFFFF', chip_tool_output_file)
-        # send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID} 0', chip_tool_output_file)
-        # send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID} 1', chip_tool_output_file)
-        # send_cmd(f'{chip_tool_path} accesscontrol read feature-map {nodeID} 0', chip_tool_output_file)
-        # factory_reset_device()
+        send_cmd(f'{chip_tool_path} descriptor read device-type-list {nodeID+i} 0xFFFF', chip_tool_output_file)
+        send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID+i} 0', chip_tool_output_file)
+        send_cmd(f'{chip_tool_path} descriptor read server-list {nodeID+i} 1', chip_tool_output_file)
+        send_cmd(f'{chip_tool_path} accesscontrol read feature-map {nodeID+i} 0', chip_tool_output_file)
+        send_cmd(f'{chip_tool_path} pairing unpair {nodeID+i} --commissioner-name alpha', chip_tool_output_file)
+        #factory_reset_device()
         teardown_device_logs()
-        sleep(3)
 
 
     if result != CommandError.SUCCESS:
@@ -341,7 +340,7 @@ def single_fabric_commissioning_test(
 
 
 def multiple_fabric_commissioning_test(
-        nodeID: str,
+        nodeID: int,
         endpointID: str,
         otbrhex: str,
         pin: str,
@@ -368,7 +367,7 @@ def multiple_fabric_commissioning_test(
     Note: We currently run this test on 5 fabrics since this is the default defined on chip-tool.
 
     Args:
-        nodeID (str): The node ID for commissioning.
+        nodeID (int): The node ID for commissioning.
         endpointID (str): The endpoint ID.
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
@@ -435,7 +434,7 @@ def multiple_fabric_commissioning_test(
 
 
 def yaml_test_script_test(
-    nodeID: str,
+    nodeID: int,
     otbrhex: str,
     pin: str,
     discriminator: str,
@@ -459,7 +458,7 @@ def yaml_test_script_test(
     3. Unpair the device after all tests.
     
     Args:
-        nodeID (str): The node ID for commissioning.
+        nodeID (int): The node ID for commissioning.
         otbrhex (str): The OTBR hex string.
         pin (str): The PIN code.
         discriminator (str): The discriminator.
@@ -542,7 +541,7 @@ if __name__ == '__main__':
     parser.add_argument('--otbrhex', type=str, required=False)
     parser.add_argument('--discriminator', type=str, required=False)
     parser.add_argument('--pin', type=str, required=False)
-    parser.add_argument('--nodeID', type=str, required=False)
+    parser.add_argument('--nodeID', type=int, required=False)
     parser.add_argument('--endpointID', type=str, required=False)
     parser.add_argument('--target_device_ip', type=str, required=False)
     parser.add_argument('--target_device_serial_num', type=str, required=False)
