@@ -638,7 +638,7 @@ if __name__ == '__main__':
             exit(-1)
         # if we didn't fail, we unpaired the device so we need to set commission_device to True for the next test
         commission_device = True
-    if multiple_run_count > 0 and not commission_device:
+    if multiple_run_count > 0:
         result = multiple_fabric_commissioning_test(
             nodeID, 
             endpointID, 
